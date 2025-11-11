@@ -1,11 +1,16 @@
-import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+
+// 🎓 Importamos o Toastify (veja Passo 3)
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
 import Login from './pages/Login';
 import AgendaDashboard from './pages/AgendaDashboard';
 import ClientesPage from './pages/ClientesPage';
 import QuartosPage from './pages/QuartosPage'; 
 import MainLayout from './layouts/MainLayout';
 import GestaoPage from './pages/GestaoPage';
+
 
 
 const ProtectedRoutes = () => {
@@ -17,6 +22,19 @@ const ProtectedRoutes = () => {
 function App() {
   return (
     <BrowserRouter>
+    {/* 🎓 Container global para os TOASTS */}
+        <ToastContainer
+            position="top-right"
+            autoClose={5000}
+            hideProgressBar={false}
+            newestOnTop={false}
+            closeOnClick
+            rtl={false}
+            pauseOnFocusLoss
+            draggable
+            pauseOnHover
+            theme="light"
+        />
       <Routes>
         {/* Rota de Login (Pública) */}
         <Route path="/" element={<Login />} />

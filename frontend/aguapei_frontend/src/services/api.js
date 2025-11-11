@@ -1,126 +1,168 @@
 import axios from 'axios';
+import { toast } from 'react-toastify'; 
 
-// =======================================================================
-// 1. CONFIGURAÇÃO DO AXIOS (O 'apiClient')
-// =======================================================================
-// Configura a URL base da sua API do Django.
+// ... (Configuração do apiClient e interceptor de REQUISIÇÃO mantidos) ...
 const apiClient = axios.create({
-  baseURL: 'http://127.0.0.1:8000/api', // A URL do seu back-end
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  }
+  baseURL: 'http://127.0.0.1:8000/api',
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  }
 });
 
-// =======================================================================
-// 2. 🎓 INTERCEPTADOR DE REQUISIÇÃO (Segurança JWT)
-// =======================================================================
-// Este é o "guardião" que anexa o token em todas as chamadas.
 apiClient.interceptors.request.use(
-    (config) => {
-        // 1. Pega o token do localStorage (que salvamos no Login.js)
-        const token = localStorage.getItem('authToken');
+  (config) => {
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+
+// =======================================================================
+// 3. 🎓 INTERCEPTADOR DE RESPOSTA (CORRIGIDO)
+// =======================================================================
+apiClient.interceptors.response.use(
+    (response) => {
+        // --- SUCESSO (Status 2xx) ---
         
-        // 2. Se o token existir, anexa ele no cabeçalho 'Authorization'
-        if (token) {
-            // O formato 'Bearer' é o padrão para JWT
-            config.headers['Authorization'] = `Bearer ${token}`;
+        if (response.status === 204) {
+            return null; 
         }
-        
-        // 3. Deixa a requisição continuar
-        return config;
+
+        // 🎓 CORREÇÃO: A exceção para '/login/' foi removida.
+        //
+        // Agora, TODAS as respostas de sucesso (incluindo o login)
+        // passarão por esta linha.
+        // O interceptor sempre retornará o conteúdo da chave "data".
+        //
+        // Backend: { status: 'ok', data: { token: '...' } }
+        // Componente: { token: '...' }
+        //
+        return response.data.data;
     },
     (error) => {
-        // Em caso de erro ao preparar a requisição
+        // --- ERRO (Status 4xx, 5xx ou Rede) ---
+        
+        if (error.response) {
+            const data = error.response.data; 
+            const status = error.response.status;
+
+            // Erro Global: 401 (Não Autorizado / Token Expirado)
+            if (status === 401) {
+                // 🎓 ATENÇÃO: Se a URL *NÃO FOR* a de login, redireciona.
+                //    (Evita loop de redirect se o próprio login falhar com 401)
+                if (error.config.url !== '/login/') {
+                    toast.error('Sua sessão expirou. Por favor, faça login novamente.');
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login';
+                    return;
+                }
+            }
+            
+            // ... (O resto do tratamento de erro 500, 409, 400 está correto) ...
+            if (status === 500) {
+                toast.error(data.message || 'Erro interno no servidor. Contate o administrador.');
+            }
+            if (status === 409) {
+                 toast.warn(data.message || 'Conflito de dados detectado.');
+            }
+            
+            // Rejeita a promessa com o OBJETO DE ERRO (data)
+            return Promise.reject(data);
+
+        } else if (error.request) {
+            toast.error('Não foi possível conectar ao servidor.');
+            return Promise.reject({ code: 'NETWORK_ERROR', message: 'Não foi possível conectar ao servidor.' });
+        }
+
+        toast.error('Erro inesperado na aplicação.');
         return Promise.reject(error);
     }
 );
 
-// =======================================================================
-// 2. FUNÇÕES DE API (EXPORTAÇÕES NOMEADAS)
-// =======================================================================
 
-/**
- * Busca os dados de reservas para o gráfico de Gantt.
- * Usado em: AgendaDashboard.js
- */
-export const fetchAgendaReservas = () => {
-  // Faz a chamada GET para /api/agenda/
-  const cacheBuster = `_t=${new Date().getTime()}`;
-    return apiClient.get(`/agenda/?${cacheBuster}`);
-};
-
-/**
- * Autentica um usuário.
- * Usado em: Login.js
- * (Placeholder - A lógica de back-end ainda será criada)
- */
-/**
- * Autentica um usuário.
- * Faz um POST real para o nosso endpoint /api/login/ customizado.
- */
+// =======================================================================
+// 4. FUNÇÕES DE API (Estão corretas e não precisam de mudança)
+// =======================================================================
+// (login, fetchUsuarioPerfil, fetchIndicadoresGestao, fetchAgendaReservas, etc...)
+// --- AUTENTICAÇÃO E PERFIL ---
 export const login = (email, senha) => {
-    // Usamos 'email_usuario' e 'senha' se o backend esperar,
-    // mas nossa view espera 'email' e 'senha'.
-    return apiClient.post('/login/', { email, senha });
+    return apiClient.post('/login/', { email, senha });
 };
-
-/**
- * Busca a lista completa de clientes (hóspedes).
- * Usado em: ClientesPage.js
- */
-// export const fetchClientes = () => {
-//     return apiClient.get('/clientes/');
-// };
-export const fetchHospedes = () => {
-    // Atualizado de /clientes/ para /hospedes/
-    return apiClient.get('/hospedes/');
-};
-
-export const fetchQuartos = () => {
-  // Faz a chamada GET para /api/quartos/
-  return apiClient.get('/quartos/');
-};
-/**
- * Busca os KPIs e dados de faturamento para o Dashboard de Gestão.
- * Usado em: GestaoPage.js
- */
-export const fetchIndicadoresGestao = () => {
-    return apiClient.get('/gestao/indicadores/');
-};
-
 export const fetchUsuarioPerfil = () => {
-    return apiClient.get('/perfil/');
+    return apiClient.get('/perfil/');
 };
-
-/**
- * Atualiza os dados do perfil do usuário logado.
- * Usado em: UsuarioModal.js
- */
 export const updateUsuarioPerfil = (perfilData) => {
-    // perfilData = { nome_usuario, email_usuario, senha (opcional) }
-    return apiClient.put('/perfil/', perfilData);
+    return apiClient.put('/perfil/', perfilData);
 };
 
-// FUNÇÃO DE EDIÇÃO COMPLETA
-/**
- * PUT: Atualiza uma reserva existente (Formulário completo)
- * @param {number} reservaQuartoId - O ID da (tabela reserva_quarto)
- * @param {object} payload - O objeto completo da reserva (do formulário)
- */
+// --- GESTÃO (BI) ---
+export const fetchIndicadoresGestao = (ano) => {
+    return apiClient.get('/gestao/indicadores/', { params: { ano } });
+};
+
+// --- AGENDA E RESERVAS ---
+export const fetchAgendaReservas = () => {
+    return apiClient.get('/agenda/');
+};
+export const fetchReservaDetalhes = (reservaQuartoId) => {
+    return apiClient.get(`/agenda/detalhes/${reservaQuartoId}/`);
+};
+export const createReserva = (payload) => {
+    // 🎓 ATENÇÃO: Seu 'urls.py' mapeia 'reservas/create/' para o POST
+    return apiClient.post('/reservas/create/', payload); 
+};
 export const updateReservaCompleta = (reservaQuartoId, payload) => {
-    return apiClient.put(`/agenda/editar/${reservaQuartoId}/`, payload);
+    return apiClient.put(`/agenda/editar/${reservaQuartoId}/`, payload);
+};
+export const updateReservaStatus = (reservaQuartoId, payload) => {
+    return apiClient.patch(`/agenda/update-status/${reservaQuartoId}/`, payload);
+};
+
+// --- HÓSPEDES (CRUD) ---
+export const fetchHospedes = (status = 'Ativo') => {
+    // Passa o status como um parâmetro de query
+    return apiClient.get('/hospedes/', { params: { status } });
+};
+export const createHospede = (hospedeData) => {
+    return apiClient.post('/hospedes/', hospedeData);
+};
+export const updateHospede = (hospedeId, hospedeData) => {
+    return apiClient.put(`/hospedes/${hospedeId}/`, hospedeData);
+};
+export const deleteHospede = (hospedeId) => {
+    return apiClient.delete(`/hospedes/${hospedeId}/`);
+};
+export const updateHospedeStatus = (hospedeId, novoStatus) => {
+    return apiClient.patch(`/hospedes/${hospedeId}/`, { ativo: novoStatus });
+};
+
+// --- QUARTOS (CRUD) ---
+export const fetchQuartos = (status = 'Disponível') => {
+    // Passa o status como um parâmetro de query
+    return apiClient.get('/quartos/', { params: { status } });
+};
+export const fetchQuartoDetalhes = (quartoId) => {
+    return apiClient.get(`/quartos/${quartoId}/`);
+};
+export const createQuarto = (quartoData) => {
+    return apiClient.post('/quartos/', quartoData);
+};
+export const updateQuarto = (quartoId, quartoData) => {
+    return apiClient.put(`/quartos/${quartoId}/`, quartoData);
+};
+export const deleteQuarto = (quartoId) => {
+    // (Esta função já existe e será usada para o "Excluir")
+    return apiClient.delete(`/quartos/${quartoId}/`);
 };
 
 // =======================================================================
-// 3. EXPORTAÇÃO PADRÃO (DEFAULT)
+// 5. EXPORTAÇÃO PADRÃO (DEFAULT)
 // =======================================================================
-
-/**
- * Exporta a instância 'apiClient' como padrão.
- * Isso corrige o erro 'does not contain a default export'.
- * Permite que outros componentes façam chamadas diretas, ex:
- * import apiClient from './api';
- * apiClient.post('/clientes/', dados);
- */
 export default apiClient;

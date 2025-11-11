@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Container, Form, Button, Alert, Card } from 'react-bootstrap';
+// 🎓 Importamos a função 'login' do nosso api.js refatorado
 import { login } from '../services/api';
 import './Login.css';
 
@@ -12,7 +13,7 @@ function Login() {
     const navigate = useNavigate();
 
     // ==========================================================
-    // 🎓 handleSubmit CORRIGIDO
+    // 🎓 handleSubmit REFATORADO (Alinhado com api.js e views.py)
     // ==========================================================
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -20,38 +21,41 @@ function Login() {
         setLoading(true);
 
         try {
-            // 1. CAPTURAMOS a resposta da nossa API de login
-            const response = await login(email, password);
+            // 1. CHAMA A API
+            // Graças ao interceptor do 'api.js', 'responseData'
+            // já será o objeto 'data' retornado pelo 'views.py'.
+            // responseData = { token: "...", usuario: { ... } }
+            const responseData = await login(email, password);
 
-            // 2. VERIFICAMOS se o token veio na resposta
-            if (response.data && response.data.token) {
+            // 2. VERIFICA O SUCESSO
+            // (Não precisamos mais de 'response.data.token')
+            if (responseData.token) {
                 
-                // 3. SALVAMOS O TOKEN no localStorage
-                // O localStorage é um "depósito" do navegador que persiste
-                // mesmo se o usuário fechar a aba. É aqui que guardamos
-                // a "chave" de autenticação (o JWT).
-                localStorage.setItem('authToken', response.data.token);
+                // 3. SALVA O TOKEN
+                localStorage.setItem('authToken', responseData.token);
                 
-                // 4. SALVAMOS OS DADOS DO USUÁRIO
-                // Também guardamos os dados do usuário (em formato JSON)
-                // para que o Sidebar possa mostrar o nome dele.
-                localStorage.setItem('usuario', JSON.stringify(response.data.usuario));
+                // 4. SALVA OS DADOS DO USUÁRIO
+                localStorage.setItem('usuario', JSON.stringify(responseData.usuario));
 
-                // 5. REDIRECIONAMOS (somente após salvar o token)
-                navigate('/agenda');
+                // 5. REDIRECIONA
+                navigate('/agenda'); // Redireciona para o dashboard principal
             } else {
                 // Caso a API não retorne um token (erro inesperado)
                 setError('Resposta de login inválida do servidor.');
             }
 
         } catch (err) {
-            // 6. TRATAMENTO DE ERRO MELHORADO
-            // Em vez de 'err.message' (genérico), nós lemos a
-            // resposta 'erro' que o nosso back-end Django enviou.
-            if (err.response && err.response.data && err.response.data.erro) {
-                setError(err.response.data.erro);
+            // 6. 🎓 TRATAMENTO DE ERRO PADRONIZADO
+            // Graças ao interceptor, 'err' já é o nosso objeto JSON de erro
+            // err = { status: 'error', code: '...', message: '...' }
+            
+            if (err.message) {
+                // Ex: "Credenciais inválidas" (Erro 401)
+                // Ex: "Erro interno: ..." (Erro 500)
+                setError(err.message);
             } else {
                 // Erro de rede (ex: servidor Django desligado)
+                // (O interceptor já deve ter mostrado um toast, mas temos um fallback)
                 setError('Não foi possível conectar ao servidor.');
             }
         } finally {
@@ -59,7 +63,7 @@ function Login() {
         }
     };
     // ==========================================================
-    // FIM DA CORREÇÃO
+    // FIM DA REFATORAÇÃO
     // ==========================================================
 
 
@@ -74,6 +78,8 @@ function Login() {
                         <p className="text-center text-muted mb-4">Aguapé</p>
 
                         <Form onSubmit={handleSubmit}>
+                            
+                            {/* 🎓 Este Alert agora exibirá as mensagens corretas da API */}
                             {error && <Alert variant="danger">{error}</Alert>}
 
                             <Form.Group className="mb-3" controlId="formBasicEmail">
@@ -99,7 +105,7 @@ function Login() {
                             </Form.Group>
 
                             <div className="d-grid gap-2 mt-4">
-                                <Button className="btn-entrar" type="submit" disabled={loading}>
+                                <Button className="btn-entrar" type="submit" disabled={loading} style={{ backgroundColor: '#26522c', borderColor: '#26522c' }}>
                                     {loading ? 'Entrando...' : 'Entrar'}
                                 </Button>
                                 

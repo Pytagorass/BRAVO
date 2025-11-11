@@ -1,12 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Form, Alert, Col, Row, Spinner } from 'react-bootstrap';
-import apiClient from '../services/api';
+// 🎓 1. Importamos as funções de API específicas e o 'toast'
+import { createHospede, updateHospede } from '../services/api';
+import { toast } from 'react-toastify';
 
-// Recebe props para funcionar:
-// show: (boolean) se o modal deve ser exibido
-// handleClose: (função) para fechar o modal
-// onSaveSuccess: (função) para avisar a página principal que um cliente foi salvo (para atualizar a lista)
-// cliente: (objeto) o cliente para editar, ou 'null' se for para criar um novo
 function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
     
     // Estado inicial do formulário
@@ -14,75 +11,108 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
         nome_hospede: '',
         telefone: '',
         email_hospede: '',
-        pais_origem: 'Brasil', // Default 'Brasil' como no protótipo [cite: 928-930]
+        pais_origem: 'Brasil', 
         passaporte: '',
         cpf: ''
     });
 
     const [formData, setFormData] = useState(getInitialState());
     const [isSaving, setIsSaving] = useState(false);
-    const [error, setError] = useState(null);
-
-    // Determina se estamos no modo de edição
-    const isEditMode = cliente !== null;
     
-    // Lógica do protótipo (página 27-28) [cite: 928-933]
+    // 🎓 2. O 'error' agora vai receber a MENSAGEM de erro da nossa API padronizada
+    const [error, setError] = useState(null); 
+
+    const isEditMode = cliente !== null;
     const isBrasil = formData.pais_origem === 'Brasil';
 
-    // Efeito para preencher o formulário quando um cliente é passado para edição
+    // Efeito para preencher o formulário (Lógica original mantida, está correta)
     useEffect(() => {
         if (isEditMode) {
-            // Se estamos editando, preenche o formulário com os dados do cliente
             setFormData({
                 nome_hospede: cliente.nome_hospede || '',
                 telefone: cliente.telefone || '',
                 email_hospede: cliente.email_hospede || '',
-                pais_origem: cliente.pais_origem || '',
+                pais_origem: cliente.pais_origem || 'Brasil', // Garante 'Brasil' se for nulo
                 passaporte: cliente.passaporte || '',
                 cpf: cliente.cpf || ''
             });
         } else {
-            // Se estamos criando, reseta o formulário
             setFormData(getInitialState());
         }
-        setError(null); // Limpa erros ao abrir o modal
-    }, [cliente, isEditMode, show]); // Roda sempre que o 'cliente' ou 'show' mudar
+        setError(null); // Limpa erros ao abrir/trocar o modal
+    }, [cliente, isEditMode, show]); 
 
+    // 🎓 3. HandleChange APRIMORADO
+    //    Limpa o campo de documento oposto ao mudar o país
+    //    para evitar enviar (ex:) CPF para um 'pais_origem' != 'Brasil'
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setFormData(prev => ({
-            ...prev,
-            [name]: value
-        }));
+        setFormData(prev => {
+            const newState = { ...prev, [name]: value };
+            
+            // Lógica de limpeza (baseada no protótipo e na validação do backend)
+            if (name === 'pais_origem') {
+                if (value === 'Brasil') {
+                    newState.passaporte = ''; // Limpa passaporte se for Brasil
+                } else {
+                    newState.cpf = ''; // Limpa CPF se não for Brasil
+                }
+            }
+            return newState;
+        });
     };
 
+    // 🎓 4. HandleSubmit REFATORADO
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSaving(true);
         setError(null);
 
         try {
+            let response;
+            
             if (isEditMode) {
                 // Modo Edição (PUT)
-                await apiClient.put(`/hospedes/${cliente.id_hospede}/`, formData);
+                // A API (views.py) retorna { status: 'ok', data: {hospede_atualizado} }
+                response = await updateHospede(cliente.id_hospede, formData);
+                toast.success('Cliente atualizado com sucesso!');
             } else {
                 // Modo Criação (POST)
-                await apiClient.post('/hospedes/', formData);
+                // A API (views.py) retorna { status: 'ok', data: {novo_hospede} }
+                response = await createHospede(formData);
+                toast.success('Novo cliente salvo com sucesso!');
             }
-            onSaveSuccess(); // Avisa a página principal para recarregar a lista
-            handleClose();   // Fecha o modal
-        } catch (err) {
-            console.error(err.response.data);
-            // Captura erros de validação do Django (ex: e-mail duplicado)
-            const errorData = err.response.data;
-            let errorMsg = 'Ocorreu um erro ao salvar.';
-            if (errorData) {
-                // Transforma os erros do Django em uma string
-                errorMsg = Object.keys(errorData).map(key => 
-                    `${key}: ${errorData[key].join(', ')}`
-                ).join(' ');
+            
+            // 🎓 5. ATUALIZAÇÃO EFICIENTE
+            //    Passamos o objeto (response.data) para o pai.
+            //    O pai pode agora atualizar o estado da lista *sem*
+            //    fazer um novo fetch de todos os clientes.
+            onSaveSuccess(response.data); 
+            handleClose();    // Fecha o modal
+            
+        } catch (errorData) {
+            // 🎓 6. TRATAMENTO DE ERRO PADRONIZADO
+            //    'errorData' já é o objeto JSON de erro (ex: { status, code, message })
+            //    graças ao interceptor do 'apiClient' (services/api.js).
+            
+            console.error("Erro ao salvar:", errorData);
+
+            if (errorData.code === 'VALIDATION_ERROR') {
+                // Ex: "CPF é obrigatório para hóspedes do Brasil."
+                setError(errorData.message);
+            } 
+            else if (errorData.code === 'CONFLICT') {
+                // Ex: "Este e-mail já está em uso."
+                setError(errorData.message);
+            } 
+            else if (errorData.message) {
+                // Outros erros da API (ex: FK_CONSTRAINT, DB_INTEGRITY_ERROR)
+                setError(errorData.message);
             }
-            setError(errorMsg);
+            else {
+                // Fallback para erros de rede (que o interceptor já deve ter tratado com toast)
+                setError('Ocorreu um erro ao salvar. Tente novamente.');
+            }
         } finally {
             setIsSaving(false);
         }
@@ -97,6 +127,8 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
             </Modal.Header>
             <Form onSubmit={handleSubmit}>
                 <Modal.Body>
+                    
+                    {/* 🎓 7. O Alert Inline agora exibe a 'message' da nossa API */}
                     {error && <Alert variant="danger">{error}</Alert>}
                     
                     {/* Linha 1: Nome */}
@@ -132,6 +164,8 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
                                     name="email_hospede"
                                     value={formData.email_hospede}
                                     onChange={handleChange}
+                                    // 🎓 Boa prática: adicionar 'required' no e-mail
+                                    required 
                                 />
                             </Form.Group>
                         </Col>
@@ -140,23 +174,21 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
                     {/* Linha 3: País (com lógica de seleção) */}
                     <Form.Group className="mb-3" controlId="pais_origem">
                         <Form.Label>País</Form.Label>
-                        <Form.Control
-                            as="select"
+                        <Form.Select // 🎓 <Form.Select> é a tag correta no Bootstrap 5
                             name="pais_origem"
                             value={formData.pais_origem}
                             onChange={handleChange}
                         >
-                            {/* Adicione mais países se necessário */}
                             <option value="Brasil">Brasil</option>
                             <option value="Argentina">Argentina</option>
                             <option value="Estados Unidos">Estados Unidos</option>
                             <option value="Itália">Itália</option>
                             <option value="Alemanha">Alemanha</option>
                             <option value="Outro">Outro</option>
-                        </Form.Control>
+                        </Form.Select>
                     </Form.Group>
 
-                    {/* Linha 4: CPF e Passaporte (com lógica condicional) */}
+                    {/* Linha 4: CPF e Passaporte (lógica condicional mantida) */}
                     <Row>
                         <Col md={6}>
                             <Form.Group className="mb-3" controlId="cpf">
@@ -166,8 +198,10 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
                                     name="cpf"
                                     value={formData.cpf}
                                     onChange={handleChange}
-                                    required={isBrasil} // Obrigatório se for Brasil [cite: 928-930]
-                                    disabled={!isBrasil} // Desabilitado se não for Brasil
+                                    required={isBrasil} 
+                                    disabled={!isBrasil} 
+                                    // 🎓 Limpa o campo se for desabilitado
+                                    key={isBrasil ? 'cpf-br' : 'cpf-other'} 
                                 />
                             </Form.Group>
                         </Col>
@@ -179,8 +213,9 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
                                     name="passaporte"
                                     value={formData.passaporte}
                                     onChange={handleChange}
-                                    required={!isBrasil} // Obrigatório se NÃO for Brasil [cite: 931-933]
-                                    disabled={isBrasil}  // Desabilitado se for Brasil
+                                    required={!isBrasil} 
+                                    disabled={isBrasil} 
+                                    key={isBrasil ? 'pass-br' : 'pass-other'}
                                 />
                             </Form.Group>
                         </Col>

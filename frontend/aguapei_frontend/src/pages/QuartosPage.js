@@ -1,137 +1,245 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { fetchQuartos } from '../services/api'; 
+import { Spinner, Alert, Button, ButtonGroup } from 'react-bootstrap';
+import { toast } from 'react-toastify';
+
+import { fetchQuartos, deleteQuarto } from '../services/api';
 import QuartoModal from '../components/QuartoModal';
-// import MainLayout from '../layouts/MainLayout';
-// import './QuartosPage.css';
+import ConfirmacaoModal from '../components/ConfirmacaoModal';
+// import './QuartosPage.css'; // Descomente se existir o arquivo de estilos
 
 const QuartosPage = () => {
-    const [quartos, setQuartos] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+  const [quartos, setQuartos] = useState([]);
+  const [viewStatus, setViewStatus] = useState('Disponível');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-    const [showModal, setShowModal] = useState(false);
-    const [quartoSelecionado, setQuartoSelecionado] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [quartoSelecionado, setQuartoSelecionado] = useState(null);
 
-    const carregarQuartos = useCallback(async () => {
-        try {
-            setLoading(true);
-            const response = await fetchQuartos();
-            setQuartos(response.data);
-            setError(null);
-        } catch (err) {
-            let errorMsg = 'Falha ao carregar a lista de quartos.';
-            // Adiciona verificação de erro de token
-            if (err.response && err.response.status === 401) {
-                errorMsg = 'Sua sessão expirou. Faça login novamente.';
-            }
-            setError(errorMsg);
-            console.error('Erro detalhado:', err);
-        } finally {
-            setLoading(false);
-        }
-    }, []);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [quartoParaExcluir, setQuartoParaExcluir] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-    useEffect(() => {
-        carregarQuartos();
-    }, [carregarQuartos]);
+  // 🔄 Carregar quartos conforme status
+  const carregarQuartos = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchQuartos(viewStatus);
+      setQuartos(data);
+    } catch (err) {
+      setError(err.message || 'Falha ao carregar a lista de quartos.');
+    } finally {
+      setLoading(false);
+    }
+  }, [viewStatus]);
 
-    // 3. ===============================================
-    //    HANDLERS (Ações)
-    //    ===============================================
-    
-    // Chamado pelo "+ Novo Quarto"
-    const handleShowNovoQuarto = () => {
-        setQuartoSelecionado(null);
-        setShowModal(true);
-    };
+  useEffect(() => {
+    carregarQuartos();
+  }, [carregarQuartos]);
 
-    // --- MUDANÇA 1: Descomentando a função ---
-    // Chamado pelo botão "Editar"
-    const handleShowEditarQuarto = (quarto) => {
-        setQuartoSelecionado(quarto); // Passa o objeto 'quarto' para o modal
-        setShowModal(true);           // Abre o modal em MODO EDIÇÃO
-    };
-    // --- Fim da Mudança 1 ---
+  // 🧩 Modais e ações
+  const handleShowNovoQuarto = () => {
+    setQuartoSelecionado(null);
+    setShowModal(true);
+  };
 
-    // Chamado pelo modal (onSaveSuccess)
-    const handleSaveSuccess = () => {
-        setShowModal(false);
-        carregarQuartos(); // Recarrega a lista
-    };
+  const handleShowEditarQuarto = (quarto) => {
+    setQuartoSelecionado(quarto);
+    setShowModal(true);
+  };
 
-    // 4. Função de renderização de conteúdo
-    const renderContent = () => {
-        if (loading) return <div>Carregando quartos...</div>;
-        if (error) return <div className="alert alert-danger">{error}</div>;
-        if (quartos.length === 0 && !loading) return <div>Nenhum quarto cadastrado.</div>;
+  // 💾 Atualizar lista após salvar
+  const handleSaveSuccess = (quartoSalvo) => {
+    setShowModal(false);
 
-        return (
-            <table className="table table-striped table-hover">
-                <thead>
-                    <tr>
-                        <th>Número / Nome</th>
-                        <th>Tipo (Capacidade)</th>
-                        <th>Valor da Diária</th>
-                        <th>Status</th>
-                        <th>Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {quartos.map(quarto => (
-                        <tr key={quarto.id_quarto}>
-                            <td>{quarto.numero}</td>
-                            <td>{quarto.tipo_quarto}</td>
-                            <td>
-                                {new Intl.NumberFormat('pt-BR', { 
-                                    style: 'currency', 
-                                    currency: 'BRL' 
-                                }).format(quarto.valor_diaria)}
-                            </td>
-                            <td>{quarto.status_quarto}</td> 
-                            <td>
-                                {/* --- MUDANÇA 2: Adicionando o onClick --- */}
-                                <button 
-                                    className="btn btn-sm btn-secondary"
-                                    onClick={() => handleShowEditarQuarto(quarto)}
-                                >
-                                    Editar
-                                </button>
-                                {/* --- Fim da Mudança 2 --- */}
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        );
-    };
+    if (quartoSalvo.status_quarto !== viewStatus) {
+      setQuartos((prev) =>
+        prev.filter((q) => q.id_quarto !== quartoSalvo.id_quarto)
+      );
+      toast.info(`Quarto movido para "${quartoSalvo.status_quarto}".`);
+    } else {
+      setQuartos((prev) => {
+        const existe = prev.some((q) => q.id_quarto === quartoSalvo.id_quarto);
+        return existe
+          ? prev.map((q) =>
+              q.id_quarto === quartoSalvo.id_quarto ? quartoSalvo : q
+            )
+          : [...prev, quartoSalvo];
+      });
+    }
+  };
 
-    // 5. Renderização principal
+  // 🗑️ Excluir quarto
+  const handleShowExcluir = (quarto) => {
+    setQuartoParaExcluir(quarto);
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmExcluir = async () => {
+    if (!quartoParaExcluir) return;
+    setIsDeleting(true);
+
+    try {
+      await deleteQuarto(quartoParaExcluir.id_quarto);
+      setQuartos((prev) =>
+        prev.filter((q) => q.id_quarto !== quartoParaExcluir.id_quarto)
+      );
+      toast.success(`Quarto "${quartoParaExcluir.numero}" excluído com sucesso.`);
+    } catch (err) {
+      if (err.code === 'FK_CONSTRAINT') {
+        toast.error(err.message);
+      } else {
+        toast.error(err.message || 'Erro ao excluir quarto.');
+      }
+    } finally {
+      setIsDeleting(false);
+      setShowConfirmModal(false);
+      setQuartoParaExcluir(null);
+    }
+  };
+
+  // 📋 Renderização da tabela
+  const renderContent = () => {
+    if (loading && quartos.length === 0) {
+      return (
+        <div className="text-center p-5">
+          <Spinner animation="border" variant="success" />
+          <p>Carregando quartos {viewStatus.toLowerCase()}s...</p>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <Alert variant="danger">
+          <Alert.Heading>Erro ao Carregar Quartos</Alert.Heading>
+          <p>{error}</p>
+          <Button onClick={carregarQuartos} variant="danger">
+            Tentar Novamente
+          </Button>
+        </Alert>
+      );
+    }
+
+    if (quartos.length === 0 && !loading) {
+      return (
+        <div className="text-center p-5">
+          Nenhum quarto {viewStatus.toLowerCase()} encontrado.
+        </div>
+      );
+    }
+
     return (
-        // <MainLayout>
-            <div className="quartos-page">
-                <div className="page-header">
-                    <h1>Gerenciamento de Quartos</h1>
-                    <button 
-                        className="btn btn-primary"
-                        onClick={handleShowNovoQuarto}
-                    >
-                        + Novo Quarto
-                    </button>
-                </div>
-                
-                <div className="page-content">
-                    {renderContent()}
-                </div>
+      <div className="table-responsive">
+        <table className="table table-striped table-hover align-middle">
+          <thead>
+            <tr>
+              <th>Número / Nome</th>
+              <th>Tipo (Capacidade)</th>
+              <th>Valor da Diária</th>
+              <th>Status</th>
+              <th style={{ width: '150px' }}>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {quartos.map((quarto) => (
+              <tr key={quarto.id_quarto}>
+                <td>{quarto.numero}</td>
+                <td>{quarto.tipo_quarto}</td>
+                <td>
+                  {new Intl.NumberFormat('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL',
+                  }).format(quarto.valor_diaria)}
+                </td>
+                <td>{quarto.status_quarto}</td>
+                <td>
+                  <Button
+                    size="sm"
+                    variant="outline-secondary"
+                    onClick={() => handleShowEditarQuarto(quarto)}
+                  >
+                    Editar
+                  </Button>
 
-                <QuartoModal 
-                    show={showModal}
-                    handleClose={() => setShowModal(false)}
-                    onSaveSuccess={handleSaveSuccess}
-                    quarto={quartoSelecionado}
-                />
-            </div>
-        // </MainLayout> 
+                  {viewStatus === 'Manutenção' && (
+                    <Button
+                      size="sm"
+                      variant="outline-danger"
+                      className="ms-2"
+                      onClick={() => handleShowExcluir(quarto)}
+                    >
+                      Excluir
+                    </Button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     );
+  };
+
+  return (
+    <div className="quartos-page">
+      <div className="page-header">
+        <h1>Gerenciamento de Quartos</h1>
+        <div>
+          <ButtonGroup className="me-2">
+            <Button
+              variant={viewStatus === 'Disponível' ? 'success' : 'outline-secondary'}
+              onClick={() => setViewStatus('Disponível')}
+              style={
+                viewStatus === 'Disponível'
+                  ? { backgroundColor: '#26522c', borderColor: '#26522c' }
+                  : {}
+              }
+            >
+              Disponíveis
+            </Button>
+            <Button
+              variant={viewStatus === 'Manutenção' ? 'warning' : 'outline-secondary'}
+              onClick={() => setViewStatus('Manutenção')}
+            >
+              Em Manutenção
+            </Button>
+          </ButtonGroup>
+
+          <Button
+            variant="primary"
+            style={{ backgroundColor: '#26522c', borderColor: '#26522c' }}
+            onClick={handleShowNovoQuarto}
+          >
+            + Novo Quarto
+          </Button>
+        </div>
+      </div>
+
+      <div className="page-content">{renderContent()}</div>
+
+      <QuartoModal
+        show={showModal}
+        handleClose={() => setShowModal(false)}
+        onSaveSuccess={handleSaveSuccess}
+        quarto={quartoSelecionado}
+      />
+
+      {quartoParaExcluir && (
+        <ConfirmacaoModal
+          show={showConfirmModal}
+          handleClose={() => setShowConfirmModal(false)}
+          handleConfirm={handleConfirmExcluir}
+          loading={isDeleting}
+          title="Confirmar Exclusão"
+          body={`Tem certeza que deseja excluir o quarto "${quartoParaExcluir.numero}"? Esta ação não pode ser desfeita e falhará se o quarto estiver vinculado a uma reserva.`}
+          confirmText="Sim, Excluir"
+          confirmVariant="danger"
+        />
+      )}
+    </div>
+  );
 };
 
 export default QuartosPage;

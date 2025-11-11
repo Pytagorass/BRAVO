@@ -181,3 +181,17 @@ CREATE INDEX idx_reserva_quarto_fk_quarto ON reserva_quarto(fk_quarto);
 
 -- Índice crucial para a consulta de Overbooking (OVERLAPS)
 CREATE INDEX idx_reserva_quarto_datas ON reserva_quarto(checkin, checkout);
+
+
+
+-- Alteração na Tabela Hospedes:
+/* Adiciona a coluna 'ativo' na tabela de hóspedes.
+  Usamos o 'status_ativo_enum' que você já criou para a tabela 'usuario'.
+*/
+ALTER TABLE hospede
+ADD COLUMN ativo status_ativo_enum NOT NULL DEFAULT 'Ativo';
+
+/* (Opcional, mas recomendado)
+  Cria um índice para otimizar a busca por clientes ativos.
+*/
+CREATE INDEX idx_hospede_ativo ON hospede(ativo);

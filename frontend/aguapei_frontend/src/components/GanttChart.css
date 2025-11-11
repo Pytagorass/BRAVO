@@ -97,14 +97,20 @@
 
 /* Ajusta o conteúdo para alinhar ícone e texto */
 .rct-item-content {
-  display: flex !important; /* Usa flexbox */
-  align-items: center !important; /* Alinha verticalmente */
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;  /* centraliza horizontalmente */
+  height: 100% !important;             /* ocupa a altura da barra */
+  padding: 0 8px;
   font-weight: 500;
-  padding-left: 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+
+
+
 
 /* Estilo para o ícone (react-feather) */
 .item-icon {
@@ -113,7 +119,7 @@
   height: 14px;
 }
 
-.item-pago .item-icon,
+.item-pago .item-icon,  
 .item-ativo .item-icon {
     stroke: #FFFFFF !important; 
 }

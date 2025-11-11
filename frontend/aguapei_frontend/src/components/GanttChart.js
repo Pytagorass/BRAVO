@@ -6,13 +6,12 @@ import 'react-calendar-timeline/style.css';
 import './GanttChart.css';
 import { DollarSign, Clock, XCircle, AlertCircle } from 'react-feather';
 
-// Aplica o idioma português globalmente
 moment.locale('pt-br');
 
 // =========================================================
 // 🔹 Processa dados vindos da API Django
 // =========================================================
-const processDataForTimeline = (quartosData, reservasData) => {
+const processDataForTimeline = (quartosData = [], reservasData = []) => {
   console.log("GanttChart.js [DEBUG]: Dados brutos recebidos:", { quartosData, reservasData });
 
   const groups = quartosData.map(q => ({
@@ -27,7 +26,7 @@ const processDataForTimeline = (quartosData, reservasData) => {
       if (!r.checkin || !r.checkout || !r.id_quarto) return;
 
       const startTime = moment(r.checkin).valueOf();
-      const endTime = moment(r.checkout).add(1, 'day').valueOf();
+      const endTime = moment(r.checkout).valueOf(); // use add(1,'day') se precisar incluir a data do checkout
       if (isNaN(startTime) || isNaN(endTime)) return;
 
       const titular = r.nome_titular || 'Hóspede';
@@ -48,6 +47,9 @@ const processDataForTimeline = (quartosData, reservasData) => {
         start_time: startTime,
         end_time: endTime,
         className: getStatusClass(r.status_reserva, r.status_pagamento),
+        // Dados extras para o renderer
+        status_pagamento: r.status_pagamento || null,
+        status_reserva: r.status_reserva || null,
       });
     } catch (error) {
       console.error(`Erro ao processar item ${index}:`, error);
@@ -59,40 +61,52 @@ const processDataForTimeline = (quartosData, reservasData) => {
 };
 
 // =========================================================
-// 🔹 Renderizador customizado com ícones
+// 🔹 Renderizador customizado com ícones (refinado)
 // =========================================================
 const itemRenderer = ({ item, getItemProps }) => {
   const getIcon = () => {
-    if (item.className.includes('pago')) return <DollarSign className="item-icon" />;
-    if (item.className.includes('ativo')) return <DollarSign className="item-icon" />;
-    if (item.className.includes('pendente')) return <Clock className="item-icon" />;
-    if (item.className.includes('cancelado')) return <XCircle className="item-icon" />;
-    if (item.className.includes('em-partes')) return <AlertCircle className="item-icon" />;
-    return null;
+    if (item.status_reserva === 'Cancelada') return <XCircle className="item-icon" />;
+    if (item.status_pagamento === 'Pago') return <DollarSign className="item-icon" />;
+    if (item.status_reserva === 'Ativa') return <DollarSign className="item-icon" />;
+    if (item.status_pagamento === 'Em Partes') return <AlertCircle className="item-icon" />;
+    if (item.status_pagamento === 'Pendente') return <Clock className="item-icon" />;
+    return <Clock className="item-icon" />; // fallback
   };
 
+  // Neutraliza line-height inline da biblioteca e garante altura total
+  const itemProps = getItemProps({
+    className: item.className, // aplica cor/status
+    style: {
+      lineHeight: 'normal',     // 🔧 evita vertical-align baseado em line-height
+      display: 'block',         // mantém a estrutura
+    }
+  });
+
   return (
-    <div {...getItemProps()}>
-      <div className="rct-item-content">
-        {getIcon()}
-        <span>{item.title}</span>
+    <div {...itemProps}>
+      {/* Wrapper interno controlado: ocupa 100%, flex centralizado */}
+      <div className="rct-item-content" style={{ height: '100%' }}>
+        <span className="d-inline-flex align-items-center gap-2">
+          {getIcon()}
+          {item.title || 'Reserva sem título'}
+        </span>
       </div>
     </div>
   );
 };
 
 // =========================================================
-// 🔹 Componente principal com tradução pt-BR
+// 🔹 Componente principal
 // =========================================================
 function GanttChart({
-  quartos,
-  reservas,
+  quartosData,
+  reservasData,
   visibleTimeStart,
   visibleTimeEnd,
   onTimeChange,
   onItemClick,
 }) {
-  const { groups, items } = processDataForTimeline(quartos, reservas);
+  const { groups, items } = processDataForTimeline(quartosData, reservasData);
 
   return (
     <div className="timeline-container">
@@ -102,31 +116,18 @@ function GanttChart({
         visibleTimeStart={visibleTimeStart}
         visibleTimeEnd={visibleTimeEnd}
         onTimeChange={onTimeChange}
-
-        /* Cabeçalhos e datas em português */
         calendarHeaderUnit="month"
         calendarSubHeaderUnit="day"
         headerLabelFormats={{
-          dayShort: { format: 'ddd DD/MM' },           // ex: seg 10/11
-          monthShort: { format: 'MMMM [de] YYYY' },    // ex: novembro de 2025
+          dayShort: { format: 'ddd DD/MM' },
+          monthShort: { format: 'MMMM [de] YYYY' },
         }}
-
-        /* Garantia de uso do locale pt-BR */
-        timeSteps={{
-          second: 1,
-          minute: 1,
-          hour: 1,
-          day: 1,
-          month: 1,
-          year: 1,
-        }}
+        timeSteps={{ day: 1, month: 1, year: 1 }}
         defaultTimeStart={moment().startOf('month')}
         defaultTimeEnd={moment().endOf('month')}
-
-        /* Aparência e comportamento */
         sidebarWidth={200}
         lineHeight={60}
-        itemHeightRatio={0.75}
+        itemHeightRatio={0.85}  // 🔧 ligeiro aumento melhora centragem visual
         canMove
         canResize
         stackItems
