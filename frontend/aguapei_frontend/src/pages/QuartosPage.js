@@ -186,7 +186,7 @@ const QuartosPage = () => {
     <div className="quartos-page">
       <div className="page-header">
         <h1>Gerenciamento de Quartos</h1>
-        <div>
+        <div className="page-actions mb-3">
           <ButtonGroup className="me-2">
             <Button
               variant={viewStatus === 'Disponível' ? 'success' : 'outline-secondary'}

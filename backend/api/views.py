@@ -481,22 +481,48 @@ def hospedes_view(request):
     
     # MÉTODO GET (Filtra por status Ativo/Inativo)
     if request.method == 'GET':
-        status = request.GET.get('status', 'Ativo')
-        if status not in ['Ativo', 'Inativo']:
-            status = 'Ativo'
-
-        sql_query = """
-            SELECT id_hospede, nome_hospede, email_hospede, telefone, 
-                   pais_origem, cpf, passaporte 
-            FROM hospede 
-            WHERE ativo = %s
-            ORDER BY nome_hospede;
-        """
         try:
+            # 1. 🎓 Pega os parâmetros da URL. Define padrões.
+            status = request.GET.get('status', 'Ativo')
+            if status not in ['Ativo', 'Inativo']:
+                status = 'Ativo'
+            
+            # Pega a página atual. O padrão é 1.
+            page = int(request.GET.get('page', 1))
+            # Pega o limite por página. O padrão é 10.
+            limit = int(request.GET.get('limit', 10))
+            
+            # Calcula o OFFSET (quantos registros pular)
+            # Página 1: (1 - 1) * 10 = 0 (pula 0)
+            # Página 2: (2 - 1) * 10 = 10 (pula 10)
+            offset = (page - 1) * limit
+
             with connection.cursor() as cursor:
-                cursor.execute(sql_query, [status])
+                
+                # 2. 🎓 QUERY 1: Obter o NÚMERO TOTAL de clientes (para os botões)
+                sql_count = "SELECT COUNT(*) FROM hospede WHERE ativo = %s"
+                cursor.execute(sql_count, [status])
+                total_count = cursor.fetchone()[0]
+
+                # 3. 🎓 QUERY 2: Obter os clientes da PÁGINA ATUAL (com LIMIT/OFFSET)
+                sql_query = """
+                    SELECT id_hospede, nome_hospede, email_hospede, telefone, 
+                           pais_origem, cpf, passaporte 
+                    FROM hospede 
+                    WHERE ativo = %s
+                    ORDER BY nome_hospede
+                    LIMIT %s OFFSET %s; 
+                """
+                cursor.execute(sql_query, [status, limit, offset])
                 clientes = dictfetchall(cursor)
-            return success_response(clientes)
+                
+            # 4. 🎓 Resposta padronizada com os dados E o total
+            response_data = {
+                "hospedes": clientes,
+                "total_count": total_count
+            }
+            return success_response(response_data)
+        
         except Exception as e:
             return error_response(str(e), 'SERVER_ERROR', 500)
 

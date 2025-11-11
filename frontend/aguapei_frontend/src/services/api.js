@@ -126,9 +126,9 @@ export const updateReservaStatus = (reservaQuartoId, payload) => {
 };
 
 // --- HÓSPEDES (CRUD) ---
-export const fetchHospedes = (status = 'Ativo') => {
+export const fetchHospedes = (status = 'Ativo', page = 1, limit = 10) => {
     // Passa o status como um parâmetro de query
-    return apiClient.get('/hospedes/', { params: { status } });
+    return apiClient.get('/hospedes/', { params: { status, page, limit } });
 };
 export const createHospede = (hospedeData) => {
     return apiClient.post('/hospedes/', hospedeData);

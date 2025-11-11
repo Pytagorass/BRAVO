@@ -26,7 +26,7 @@ const processDataForTimeline = (quartosData = [], reservasData = []) => {
       if (!r.checkin || !r.checkout || !r.id_quarto) return;
 
       const startTime = moment(r.checkin).valueOf();
-      const endTime = moment(r.checkout).valueOf(); // use add(1,'day') se precisar incluir a data do checkout
+      const endTime = moment(r.checkout).add(1, 'day').valueOf(); // use add(1,'day') se precisar incluir a data do checkout
       if (isNaN(startTime) || isNaN(endTime)) return;
 
       const titular = r.nome_titular || 'Hóspede';
