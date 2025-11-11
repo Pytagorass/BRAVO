@@ -1,0 +1,29 @@
+.login-background {
+    background-color: #f8f9fa; /* Um cinza bem claro, como no protótipo */
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden; /* Evita barras de rolagem */
+}
+
+.login-card {
+    width: 100%;
+    max-width: 400px;
+    border: none;
+    border-radius: 10px;
+}
+
+/* Cor principal (Verde) do seu protótipo */
+.btn-entrar {
+    background-color: #26522c !important; /* Usamos !important para sobrescrever o Bootstrap */
+    border-color: #26522c !important;
+}
+
+.btn-entrar:hover, .btn-entrar:focus {
+    background-color: #1a381f !important; /* Um verde um pouco mais escuro no hover */
+    border-color: #1a381f !important;
+}
+
+/* Cor do texto do seu protótipo */
+.form-label {
+    color: #30332e;
+}

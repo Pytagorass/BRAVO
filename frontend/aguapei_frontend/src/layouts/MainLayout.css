@@ -1,0 +1,14 @@
+.main-layout {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+    background-color: #f8f9fa;
+    overflow-x: hidden; 
+}
+
+.content-area {
+    flex-grow: 1; 
+    padding: 24px;
+    overflow-y: auto; 
+    transition: all 0.3s ease-in-out;
+}

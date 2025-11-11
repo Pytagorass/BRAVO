@@ -1,0 +1,40 @@
+.gestao-page .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+/* Estilo dos Cards (KPIs) */
+.kpi-card {
+    background-color: #f8f9fa; /* Cor de fundo Bootstrap */
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.kpi-card-title {
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: #6c757d; /* Cinza Bootstrap */
+    margin-bottom: 0.5rem;
+}
+
+.kpi-card-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #26522c; /* Verde do seu protótipo */
+}
+
+/* Painel de Faturamento Mensal */
+.financial-panel {
+    margin-top: 2rem;
+}
+
+.financial-panel h2 {
+    color: #343a40;
+    border-bottom: 2px solid #e9ecef;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}

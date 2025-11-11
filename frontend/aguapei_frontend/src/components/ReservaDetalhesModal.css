@@ -1,0 +1,49 @@
+/* Layout de 2 colunas para desktop */
+.detalhes-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+}
+
+.detalhes-coluna {
+    padding-right: 16px;
+}
+
+/* Em telas pequenas, vira 1 coluna */
+@media (max-width: 768px) {
+    .detalhes-container {
+        grid-template-columns: 1fr;
+        gap: 0px;
+    }
+    .detalhes-coluna {
+        padding-right: 0;
+        margin-bottom: 16px;
+    }
+}
+
+/* * Classes de Status (baseadas no ENUM do banco)
+ * Usadas para "Status Pagamento" e "Status Reserva"
+*/
+
+/* Amarelo */
+.status-pendente {
+    color: #ca8a04;
+}
+
+/* Azul */
+.status-em-partes {
+    color: #0b99b8;
+}
+
+/* Verde */
+.status-pago,
+.status-ativa,
+.status-agendada {
+    color: #16a34a;
+}
+
+/* Vermelho */
+.status-cancelado,
+.status-cancelada {
+    color: #dc3545;
+}

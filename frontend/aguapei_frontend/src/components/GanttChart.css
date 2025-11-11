@@ -1,0 +1,131 @@
+/* 1. O 'fix' essencial para a altura */
+.timeline-container {
+  min-height: 80vh; /* 80% da altura da tela */
+}
+
+/* --- 2. AJUSTES GERAIS DO GRÁFICO --- */
+
+/* Altera a cor da linha do tempo (hoje) */
+.rct-date-marker-line {
+  background-color: #dc3545; /* Vermelho */
+}
+
+/* Estiliza o cabeçalho (dias, meses) */
+.rct-header-root {
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #ddd;
+}
+
+/* Estiliza a barra lateral (nomes dos quartos) */
+.rct-sidebar {
+  background-color: #ffffff;
+  border-right: 1px solid #ddd;
+}
+
+.rct-sidebar-group {
+  border-bottom: 1px solid #eee;
+}
+
+.rct-sidebar-group:last-child {
+  border-bottom: none;
+}
+
+/* Ajusta o alinhamento do texto do quarto */
+.rct-sidebar-row {
+  padding-top: 10px;
+  padding-bottom: 10px;
+  height: 100% !important;
+  display: flex;
+  align-items: center;
+}
+
+/* --- 3. CORES DAS BARRAS DE RESERVA (DO PROTÓTIPO) --- */
+/* Usamos !important para garantir que sobrescrevemos os estilos da biblioteca */
+
+/* Verde Escuro (Pago) */
+.rct-item.item-pago {
+  background-color: #26522c !important;
+  border: 1px solid #1a381f !important;
+  color: white !important;
+}
+.rct-item.item-pago:hover {
+  background-color: #1a381f !important;
+}
+
+/* Verde Sucesso (Ativa / Check-in feito) */
+.rct-item.item-ativo {
+  background-color: #198754 !important;
+  border: 1px solid #146c43 !important;
+  color: white !important;
+}
+.rct-item.item-ativo:hover {
+  background-color: #146c43 !important;
+}
+
+/* Amarelo (Pendente) */
+.rct-item.item-pendente {
+  background-color: #ffc107 !important;
+  border: 1px solid #e0a800 !important;
+  color: #333 !important; /* Texto escuro para leitura */
+}
+.rct-item.item-pendente:hover {
+  background-color: #e0a800 !important;
+}
+
+/* Azul (Em Partes) */
+.rct-item.item-em-partes {
+  background-color: #0dcaf0 !important;
+  border: 1px solid #0b99b8 !important;
+  color: white !important;
+}
+.rct-item.item-em-partes:hover {
+  background-color: #0b99b8 !important;
+}
+
+/* Vermelho (Cancelado) */
+.rct-item.item-cancelado {
+  background-color: #dc3545 !important;
+  border: 1px solid #b02a37 !important;
+  color: white !important;
+}
+.rct-item.item-cancelado:hover {
+  background-color: #b02a37 !important;
+}
+
+
+/* --- 4. ESTILOS DOS ÍCONES DENTRO DAS BARRAS --- */
+
+/* Ajusta o conteúdo para alinhar ícone e texto */
+.rct-item-content {
+  display: flex !important; /* Usa flexbox */
+  align-items: center !important; /* Alinha verticalmente */
+  font-weight: 500;
+  padding-left: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Estilo para o ícone (react-feather) */
+.item-icon {
+  margin-right: 6px; /* Espaçamento entre o ícone e o texto */
+  width: 14px;
+  height: 14px;
+}
+
+.item-pago .item-icon,
+.item-ativo .item-icon {
+    stroke: #FFFFFF !important; 
+}
+
+/* * Para garantir que os outros ícones também tenham
+ * a cor certa de acordo com seus fundos.
+*/
+.item-pendente .item-icon {
+    stroke: #333333 !important; /* Força o relógio (fundo amarelo) a ser escuro */
+}
+
+.item-em-partes .item-icon,
+.item-cancelado .item-icon {
+    stroke: #FFFFFF !important; /* Força os ícones (fundo azul/vermelho) a serem brancos */
+}

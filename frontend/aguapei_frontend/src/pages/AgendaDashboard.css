@@ -1,0 +1,97 @@
+/* --- CORES DAS BARRAS DE RESERVA --- */
+
+/* Verde Escuro (Pago) */
+.rct-item.item-pago {
+    background-color: #26522c;
+    border: 1px solid #1a381f;
+    color: white;
+}
+.rct-item.item-pago:hover {
+    background-color: #1a381f;
+}
+
+/* Amarelo (Pendente) */
+.rct-item.item-pendente {
+    background-color: #ffc107;
+    border: 1px solid #e0a800;
+    color: #333; /* Texto escuro para melhor leitura no amarelo */
+}
+.rct-item.item-pendente:hover {
+    background-color: #e0a800;
+}
+
+/* Azul (Em Partes) - Cor baseada no seu protótipo */
+.rct-item.item-em-partes {
+    background-color: #0dcaf0; /* Um azul ciano */
+    border: 1px solid #0b99b8;
+    color: white;
+}
+.rct-item.item-em-partes:hover {
+    background-color: #0b99b8;
+}
+
+/* Vermelho (Cancelado) */
+.rct-item.item-cancelado {
+    background-color: #dc3545;
+    border: 1px solid #b02a37;
+    color: white;
+}
+.rct-item.item-cancelado:hover {
+    background-color: #b02a37;
+}
+
+
+/* --- AJUSTES GERAIS DO GRÁFICO --- */
+
+/* Altera a cor da linha do tempo (hoje) */
+.rct-date-marker-line {
+    background-color: #dc3545; /* Vermelho */
+}
+
+/* Estiliza o cabeçalho (dias, meses) */
+.rct-header-root {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #ddd;
+}
+
+/* Estiliza a barra lateral (nomes dos quartos) */
+.rct-sidebar {
+    background-color: #ffffff;
+    border-right: 1px solid #ddd;
+}
+
+.rct-sidebar-group {
+    border-bottom: 1px solid #eee;
+}
+
+.rct-sidebar-group:last-child {
+    border-bottom: none;
+}
+
+.rct-sidebar-row {
+    padding-top: 10px;
+    padding-bottom: 10px;
+    height: 100% !important; /* Garante que a altura seja respeitada */
+    display: flex;
+    align-items: center;
+}
+
+/* --- MUDANÇA PARA OS ÍCONES --- */
+/* Ajusta o conteúdo do item da barra de reserva para alinhar ícone e texto */
+.rct-item-content {
+    display: flex; /* Usa flexbox para alinhar */
+    align-items: center; /* Alinha verticalmente */
+    font-weight: 500;
+    padding-left: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Estilo para o ícone dentro da barra */
+.item-icon {
+    margin-right: 6px; /* Espaçamento entre o ícone e o texto */
+    width: 14px;
+    height: 14px;
+    /* A cor (stroke) é herdada do 'color' do .rct-item (ex: 'white' ou '#333') */
+}

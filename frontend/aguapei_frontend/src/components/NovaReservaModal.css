@@ -1,0 +1,21 @@
+/* Reutiliza o estilo do botão de login */
+.btn-entrar {
+    background-color: #26522c;
+    border-color: #26522c;
+}
+
+.btn-entrar:hover {
+    background-color: #1a381f;
+    border-color: #1a381f;
+}
+
+.valor-total-container {
+    text-align: right;
+    margin-top: 20px;
+}
+
+.valor-total-preco {
+    color: #26522c; /* Verde escuro */
+    font-weight: bold;
+    margin-left: 10px;
+}
