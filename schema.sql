@@ -195,3 +195,73 @@ ADD COLUMN ativo status_ativo_enum NOT NULL DEFAULT 'Ativo';
   Cria um índice para otimizar a busca por clientes ativos.
 */
 CREATE INDEX idx_hospede_ativo ON hospede(ativo);
+
+-- 1. Adiciona uma coluna 'nome_provisorio' na tabela de reserva.
+-- Esta coluna vai guardar o nome da "Agência" ou "Grupo".
+ALTER TABLE reserva
+ADD COLUMN nome_provisorio VARCHAR(150) NULL;
+
+-- =================================================================
+-- 2. IMPLEMENTAÇÃO DA REGRA DE NEGÓCIO (TITULAR OU NOME)
+-- =================================================================
+
+-- 🎓 PASSO 2.1: A FUNÇÃO DE GATILHO
+-- Esta função será chamada pelos nossos dois gatilhos.
+-- Ela verifica se uma reserva específica está em um estado válido.
+CREATE OR REPLACE FUNCTION check_reserva_valida()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_id_reserva INT;
+    v_is_valid BOOLEAN;
+BEGIN
+    -- Determina qual ID de reserva verificar
+    IF (TG_TABLE_NAME = 'reserva') THEN
+        v_id_reserva := NEW.id_reserva;
+    ELSIF (TG_TABLE_NAME = 'reserva_hospede') THEN
+        v_id_reserva := OLD.fk_reserva;
+    END IF;
+
+    -- Verifica a lógica:
+    -- A reserva é válida se (o nome provisório NÃO é nulo) OU (existe um titular)
+    SELECT
+        (r.nome_provisorio IS NOT NULL) OR
+        (EXISTS (
+            SELECT 1 FROM reserva_hospede rh
+            WHERE rh.fk_reserva = r.id_reserva AND rh.tipo_hospede = 'Titular'
+        ))
+    INTO v_is_valid
+    FROM reserva r
+    WHERE r.id_reserva = v_id_reserva;
+
+    -- Se não for válida, bloqueia a operação (INSERT/UPDATE/DELETE)
+    IF NOT v_is_valid THEN
+        RAISE EXCEPTION 'REGRA VIOLADA: A reserva (ID=%) deve ter um Nome Provisório (Agência) ou um Hóspede Titular associado.', v_id_reserva;
+    END IF;
+
+    -- Se chegou aqui, a operação é permitida
+    IF (TG_OP = 'DELETE') THEN
+        RETURN OLD;
+    ELSE
+        RETURN NEW;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- 🎓 PASSO 2.2: O GATILHO NA TABELA 'reserva'
+-- Vigia se alguém tentar APAGAR o nome provisório (UPDATE)
+-- (Nota: O INSERT já é tratado pela sua view, mas isso garante.)
+CREATE TRIGGER trg_check_reserva_on_update
+AFTER UPDATE OF nome_provisorio ON reserva
+FOR EACH ROW
+WHEN (NEW.nome_provisorio IS NULL) -- Só roda se o novo nome for NULO
+EXECUTE FUNCTION check_reserva_valida();
+
+
+-- 🎓 PASSO 2.3: O GATILHO NA TABELA 'reserva_hospede'
+-- Vigia se alguém EXCLUIR ou ALTERAR o último titular
+CREATE TRIGGER trg_check_reserva_on_hospede_change
+AFTER UPDATE OF tipo_hospede OR DELETE ON reserva_hospede
+FOR EACH ROW
+WHEN (OLD.tipo_hospede = 'Titular') -- Só roda se a linha antiga era de um Titular
+EXECUTE FUNCTION check_reserva_valida();

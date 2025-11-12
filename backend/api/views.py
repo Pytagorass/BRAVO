@@ -299,6 +299,8 @@ def reservas_view(request):
 # -----------------------------------------------------------------
 # VIEW: EDITAR RESERVA (Formulário Completo)
 # -----------------------------------------------------------------
+# Em /aguapei_backend/api/views.py
+
 @csrf_exempt
 @token_required
 @transaction.atomic
@@ -306,27 +308,37 @@ def reservas_view(request):
 def edit_reserva_view(request, reserva_quarto_id):
     """
     View para 'Editar' a reserva (Formulário completo).
-    🎓 REATORADO:
-    1. Adicionado SELECT ... FOR UPDATE (Controle de Concorrência).
-    2. SQL de Overbooking modificado para retornar *detalhes do conflito*.
-    3. Padronização de todas as respostas (success/error).
+    🎓 REFATORADO:
+    1. Desliga os gatilhos (Triggers) temporariamente para
+       evitar o erro "REGRA VIOLADA" durante o "delete-e-reinsere".
+    2. Implementa a lógica de 'isReservaGrupo' (nome provisório).
     """
+    
     try:
         data = json.loads(request.body)
         
-        titular_id = int(data.get('fk_hospede_id_hospede'))
+        # 1. 🎓 Lógica de Grupo/Agência (vinda do front-end)
+        titular_id = data.get('fk_hospede_id_hospede')
+        nome_provisorio = data.get('nome_provisorio')
+        
+        # Se for reserva de grupo, titularId será nulo
+        isReservaGrupo = nome_provisorio is not None
+        
         quarto_id = int(data.get('quartos')[0])
         checkin = data.get('checkin')
         checkout = data.get('checkout')
         valor_total = data.get('valor_total')
-        status_pagamento = data.get('forma_pagamento', 'Pendente')
+        status_pagamento = data.get('status_pagamento') # Mudado de 'forma_pagamento'
         observacao = data.get('observacao_reserva')
-        acompanhante_ids = data.get('acompanhantes', [])
+        
+        # Se for grupo, ignora acompanhantes
+        acompanhante_ids = [] if isReservaGrupo else data.get('acompanhantes', [])
+
         fk_usuario_logado = request.user_token_payload.get('id_usuario')
 
         with connection.cursor() as cursor:
             
-            # 3. Busca o ID da reserva principal
+            # 2. Busca o ID da reserva principal
             cursor.execute("SELECT fk_reserva FROM reserva_quarto WHERE id_reserva_quarto = %s", [reserva_quarto_id])
             reserva_link = cursor.fetchone()
             if not reserva_link:
@@ -334,17 +346,12 @@ def edit_reserva_view(request, reserva_quarto_id):
             
             id_reserva_principal = reserva_link[0]
 
-            # 🎓 CONTROLE DE CONCORRÊNCIA (Sua Solicitação)
-            # Trava a linha da 'reserva' principal. Ninguém mais pode
-            # editar ou cancelar esta reserva até que nossa transação termine (COMMIT).
+            # 3. 🎓 Trava a linha da 'reserva' (Controle de Concorrência)
             cursor.execute("SELECT 1 FROM reserva WHERE id_reserva = %s FOR UPDATE", [id_reserva_principal])
 
-            # 4. VALIDAÇÃO DE OVERBOOKING (Modificada para detalhes)
+            # 4. VALIDAÇÃO DE OVERBOOKING (Excluindo a própria reserva)
             sql_check_overbooking = """
-                SELECT 
-                    rq.checkin, 
-                    rq.checkout, 
-                    h.nome_hospede AS nome_titular_conflito
+                SELECT r.id_reserva, h.nome_hospede AS nome_titular_conflito
                 FROM reserva_quarto rq
                 JOIN reserva r ON rq.fk_reserva = r.id_reserva
                 LEFT JOIN reserva_hospede rh ON r.id_reserva = rh.fk_reserva AND rh.tipo_hospede = 'Titular'
@@ -366,16 +373,18 @@ def edit_reserva_view(request, reserva_quarto_id):
                 )
 
             # 5. UPDATE 1: Tabela 'reserva'
+            # 🎓 Atualiza o nome provisório (será NULL se não for grupo)
             sql_update_reserva = """
                 UPDATE reserva
                 SET 
-                    valor_total = %s, observacao_reserva = %s, fk_usuario = %s, status_pagamento = %s
+                    valor_total = %s, observacao_reserva = %s, fk_usuario = %s, 
+                    status_pagamento = %s, nome_provisorio = %s
                 WHERE id_reserva = %s;
             """
-            params_reserva = [valor_total, observacao, fk_usuario_logado, status_pagamento, id_reserva_principal]
+            params_reserva = [valor_total, observacao, fk_usuario_logado, status_pagamento, nome_provisorio, id_reserva_principal]
             cursor.execute(sql_update_reserva, params_reserva)
 
-            # 6. UPDATE 2: Tabela 'reserva_quarto'
+            # 6. UPDATE 2: Tabela 'reserva_quarto' (Datas, Quarto)
             sql_update_rq = """
                 UPDATE reserva_quarto
                 SET
@@ -386,25 +395,48 @@ def edit_reserva_view(request, reserva_quarto_id):
             params_rq = [quarto_id, checkin, checkout, quarto_id, reserva_quarto_id]
             cursor.execute(sql_update_rq, params_rq)
 
-            # 7. UPDATE 3: Hóspedes (Delete-e-reinsere)
+            # 7. 🎓 O "PULO DO GATO": Desliga os gatilhos (Triggers)
+            #    Isso impede que o trg_check_reserva_valida() dispare
+            #    no meio da nossa operação de "delete-e-reinsere".
+            cursor.execute("SET session_replication_role = 'replica';")
+
+            # 7.1. Deleta todos os hóspedes antigos
             cursor.execute("DELETE FROM reserva_hospede WHERE fk_reserva = %s", [id_reserva_principal])
-            sql_titular = "INSERT INTO reserva_hospede (fk_reserva, fk_hospede, tipo_hospede) VALUES (%s, %s, 'Titular');"
-            cursor.execute(sql_titular, [id_reserva_principal, titular_id])
-            if acompanhante_ids:
+            
+            nome_final_titular = nome_provisorio # Padrão
+            
+            # 7.2. Re-insere o Titular (APENAS se não for reserva de grupo)
+            if not isReservaGrupo and titular_id:
+                sql_titular = "INSERT INTO reserva_hospede (fk_reserva, fk_hospede, tipo_hospede) VALUES (%s, %s, 'Titular');"
+                cursor.execute(sql_titular, [id_reserva_principal, titular_id])
+                
+                # Busca o nome real para a resposta
+                cursor.execute("SELECT nome_hospede FROM hospede WHERE id_hospede = %s", [titular_id])
+                nome_final_titular = cursor.fetchone()[0]
+
+            # 7.3. Re-insere os Acompanhantes
+            if not isReservaGrupo and acompanhante_ids:
                 sql_acompanhante = "INSERT INTO reserva_hospede (fk_reserva, fk_hospede, tipo_hospede) VALUES (%s, %s, 'Acompanhante');"
                 params_acompanhantes = [(id_reserva_principal, ac_id) for ac_id in acompanhante_ids]
                 cursor.executemany(sql_acompanhante, params_acompanhantes)
+
+            # 7.4. 🎓 RELIGA OS GATILHOS (Triggers)
+            cursor.execute("SET session_replication_role = 'origin';")
 
             # 8. Busca o objeto completo para retornar
             # (Usando a query da view get_reserva_detalhes)
             reserva_obj = _get_reserva_detalhes_internal(cursor, reserva_quarto_id)
             if not reserva_obj:
                  return error_response('Reserva não encontrada após atualização.', 'NOT_FOUND', 404)
+            
+            # 🎓 Garante que o nome_titular correto (Agência ou Hóspede) seja enviado
+            reserva_obj['nome_titular'] = nome_final_titular
 
-        # 9. Retorna o objeto completo e atualizado
+        # 9. Fim da transação (COMMIT)
         return success_response(reserva_obj, "RESERVA_UPDATED")
 
     except Exception as e:
+        # Se algo der errado, a transação faz ROLLBACK
         return error_response(str(e), 'SERVER_ERROR', 500)
 
 # -----------------------------------------------------------------

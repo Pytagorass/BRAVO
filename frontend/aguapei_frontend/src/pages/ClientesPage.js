@@ -224,7 +224,7 @@ const ClientesPage = () => {
       <div className="page-header d-flex justify-content-between align-items-center">
         <h1>Gerenciamento de Clientes</h1>
       </div>
-      <div className="page-actions mb-3">
+      <div className="page-actions mb-3"> 
         <ButtonGroup className="me-2">
           <Button
             variant={viewStatus === 'Ativo' ? "success" : "outline-secondary"}
