@@ -5,22 +5,22 @@ import { createHospede, updateHospede } from '../services/api';
 import { toast } from 'react-toastify';
 
 function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
-    
+
     // Estado inicial do formulário
     const getInitialState = () => ({
         nome_hospede: '',
         telefone: '',
         email_hospede: '',
-        pais_origem: 'Brasil', 
+        pais_origem: 'Brasil',
         passaporte: '',
         cpf: ''
     });
 
     const [formData, setFormData] = useState(getInitialState());
     const [isSaving, setIsSaving] = useState(false);
-    
+
     // 🎓 2. O 'error' agora vai receber a MENSAGEM de erro da nossa API padronizada
-    const [error, setError] = useState(null); 
+    const [error, setError] = useState(null);
 
     const isEditMode = cliente !== null;
     const isBrasil = formData.pais_origem === 'Brasil';
@@ -40,7 +40,7 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
             setFormData(getInitialState());
         }
         setError(null); // Limpa erros ao abrir/trocar o modal
-    }, [cliente, isEditMode, show]); 
+    }, [cliente, isEditMode, show]);
 
     // 🎓 3. HandleChange APRIMORADO
     //    Limpa o campo de documento oposto ao mudar o país
@@ -49,7 +49,7 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
         const { name, value } = e.target;
         setFormData(prev => {
             const newState = { ...prev, [name]: value };
-            
+
             // Lógica de limpeza (baseada no protótipo e na validação do backend)
             if (name === 'pais_origem') {
                 if (value === 'Brasil') {
@@ -70,7 +70,7 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
 
         try {
             let response;
-            
+
             if (isEditMode) {
                 // Modo Edição (PUT)
                 // A API (views.py) retorna { status: 'ok', data: {hospede_atualizado} }
@@ -82,29 +82,29 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
                 response = await createHospede(formData);
                 toast.success('Novo cliente salvo com sucesso!');
             }
-            
+
             // 🎓 5. ATUALIZAÇÃO EFICIENTE
             //    Passamos o objeto (response.data) para o pai.
             //    O pai pode agora atualizar o estado da lista *sem*
             //    fazer um novo fetch de todos os clientes.
-            onSaveSuccess(response.data); 
+            onSaveSuccess(response.data);
             handleClose();    // Fecha o modal
-            
+
         } catch (errorData) {
             // 🎓 6. TRATAMENTO DE ERRO PADRONIZADO
             //    'errorData' já é o objeto JSON de erro (ex: { status, code, message })
             //    graças ao interceptor do 'apiClient' (services/api.js).
-            
+
             console.error("Erro ao salvar:", errorData);
 
             if (errorData.code === 'VALIDATION_ERROR') {
                 // Ex: "CPF é obrigatório para hóspedes do Brasil."
                 setError(errorData.message);
-            } 
+            }
             else if (errorData.code === 'CONFLICT') {
                 // Ex: "Este e-mail já está em uso."
                 setError(errorData.message);
-            } 
+            }
             else if (errorData.message) {
                 // Outros erros da API (ex: FK_CONSTRAINT, DB_INTEGRITY_ERROR)
                 setError(errorData.message);
@@ -127,10 +127,10 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
             </Modal.Header>
             <Form onSubmit={handleSubmit}>
                 <Modal.Body>
-                    
+
                     {/* 🎓 7. O Alert Inline agora exibe a 'message' da nossa API */}
                     {error && <Alert variant="danger">{error}</Alert>}
-                    
+
                     {/* Linha 1: Nome */}
                     <Form.Group className="mb-3" controlId="nome_hospede">
                         <Form.Label>Nome *</Form.Label>
@@ -142,7 +142,7 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
                             required
                         />
                     </Form.Group>
-                    
+
                     {/* Linha 2: Telefone e E-mail */}
                     <Row>
                         <Col md={6}>
@@ -165,7 +165,7 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
                                     value={formData.email_hospede}
                                     onChange={handleChange}
                                     // 🎓 Boa prática: adicionar 'required' no e-mail
-                                    required 
+                                    required
                                 />
                             </Form.Group>
                         </Col>
@@ -198,10 +198,10 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
                                     name="cpf"
                                     value={formData.cpf}
                                     onChange={handleChange}
-                                    required={isBrasil} 
-                                    disabled={!isBrasil} 
+                                    required={isBrasil}
+                                    disabled={!isBrasil}
                                     // 🎓 Limpa o campo se for desabilitado
-                                    key={isBrasil ? 'cpf-br' : 'cpf-other'} 
+                                    key={isBrasil ? 'cpf-br' : 'cpf-other'}
                                 />
                             </Form.Group>
                         </Col>
@@ -213,8 +213,8 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
                                     name="passaporte"
                                     value={formData.passaporte}
                                     onChange={handleChange}
-                                    required={!isBrasil} 
-                                    disabled={isBrasil} 
+                                    required={!isBrasil}
+                                    disabled={isBrasil}
                                     key={isBrasil ? 'pass-br' : 'pass-other'}
                                 />
                             </Form.Group>

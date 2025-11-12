@@ -1,13 +1,15 @@
 /* 1. O 'fix' essencial para a altura */
 .timeline-container {
-  min-height: 80vh; /* 80% da altura da tela */
+  min-height: 80vh;
+  /* 80% da altura da tela */
 }
 
 /* --- 2. AJUSTES GERAIS DO GRÁFICO --- */
 
 /* Altera a cor da linha do tempo (hoje) */
 .rct-date-marker-line {
-  background-color: #dc3545; /* Vermelho */
+  background-color: #dc3545;
+  /* Vermelho */
 }
 
 /* Estiliza o cabeçalho (dias, meses) */
@@ -48,6 +50,7 @@
   border: 1px solid #1a381f !important;
   color: white !important;
 }
+
 .rct-item.item-pago:hover {
   background-color: #1a381f !important;
 }
@@ -58,6 +61,7 @@
   border: 1px solid #146c43 !important;
   color: white !important;
 }
+
 .rct-item.item-ativo:hover {
   background-color: #146c43 !important;
 }
@@ -66,8 +70,10 @@
 .rct-item.item-pendente {
   background-color: #ffc107 !important;
   border: 1px solid #e0a800 !important;
-  color: #333 !important; /* Texto escuro para leitura */
+  color: #333 !important;
+  /* Texto escuro para leitura */
 }
+
 .rct-item.item-pendente:hover {
   background-color: #e0a800 !important;
 }
@@ -78,6 +84,7 @@
   border: 1px solid #0b99b8 !important;
   color: white !important;
 }
+
 .rct-item.item-em-partes:hover {
   background-color: #0b99b8 !important;
 }
@@ -88,6 +95,7 @@
   border: 1px solid #b02a37 !important;
   color: white !important;
 }
+
 .rct-item.item-cancelado:hover {
   background-color: #b02a37 !important;
 }
@@ -99,8 +107,10 @@
 .rct-item-content {
   display: flex !important;
   align-items: center !important;
-  justify-content: flex-start !important;  /* centraliza horizontalmente */
-  height: 100% !important;             /* ocupa a altura da barra */
+  justify-content: flex-start !important;
+  /* centraliza horizontalmente */
+  height: 100% !important;
+  /* ocupa a altura da barra */
   padding: 0 8px;
   font-weight: 500;
   overflow: hidden;
@@ -108,30 +118,32 @@
   white-space: nowrap;
 }
 
-
-
-
-
 /* Estilo para o ícone (react-feather) */
 .item-icon {
-  margin-right: 6px; /* Espaçamento entre o ícone e o texto */
+  margin-right: 6px;
+  /* Espaçamento entre o ícone e o texto */
   width: 14px;
   height: 14px;
 }
 
-.item-pago .item-icon,  
+.item-pago .item-icon,
 .item-ativo .item-icon {
-    stroke: #FFFFFF !important; 
+  stroke: #FFFFFF !important;
 }
 
 /* * Para garantir que os outros ícones também tenham
  * a cor certa de acordo com seus fundos.
 */
 .item-pendente .item-icon {
-    stroke: #333333 !important; /* Força o relógio (fundo amarelo) a ser escuro */
+  stroke: #333333 !important;
+  /* Força o relógio (fundo amarelo) a ser escuro */
 }
 
 .item-em-partes .item-icon,
 .item-cancelado .item-icon {
-    stroke: #FFFFFF !important; /* Força os ícones (fundo azul/vermelho) a serem brancos */
+  stroke: #FFFFFF !important;
+  /* Força os ícones (fundo azul/vermelho) a serem brancos */
 }
+
+
+

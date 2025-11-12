@@ -12,3 +12,18 @@
     overflow-y: auto; 
     transition: all 0.3s ease-in-out;
 }
+
+.main-content {
+  flex-grow: 1;     /* Ocupa o resto da largura */
+  height: 100vh;    /* Ocupa 100% da altura */
+
+  /* 🎓 A MÁGICA DO SCROLL VERTICAL:
+     Esta div (a área de conteúdo principal) agora terá a barra de rolagem vertical,
+     permitindo que o cabeçalho e os botões fiquem fixos no topo.
+  */
+  overflow-y: auto;
+  overflow-x: hidden; /* Garante que o conteúdo não force um scroll horizontal aqui */
+  
+  /* Um 'padding' para o conteúdo não colar nas bordas */
+  padding: 24px;
+}

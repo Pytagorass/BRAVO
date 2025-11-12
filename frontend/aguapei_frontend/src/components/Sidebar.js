@@ -15,11 +15,11 @@ const IconSair = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height
 
 function Sidebar({ handleLogout }) {
     const [isOpen, setIsOpen] = useState(true);
-    
+
     // --- 3. ESTADOS para o Modal e nome do usuário ---
     const [showUsuarioModal, setShowUsuarioModal] = useState(false);
     const [nomeUsuario, setNomeUsuario] = useState('Usuário');
-    
+
     // --- 4. Efeito para ler o nome do localStorage ---
     useEffect(() => {
         try {
@@ -41,7 +41,7 @@ function Sidebar({ handleLogout }) {
     const handleProfileClick = () => {
         setShowUsuarioModal(true);
     };
-    
+
     // --- 6. Handler para fechar o modal ---
     const handleModalClose = () => {
         setShowUsuarioModal(false);
@@ -98,7 +98,7 @@ function Sidebar({ handleLogout }) {
                         </div>
                     </button>
                     {/* --- Fim da Mudança 8 --- */}
-                    
+
                     <button onClick={handleLogout} className="logout-btn" title="Sair">
                         <IconSair />
                         <span className="link-text" style={{ display: isOpen ? 'block' : 'none' }}>Sair</span>
@@ -107,9 +107,9 @@ function Sidebar({ handleLogout }) {
             </aside>
 
             {/* --- 9. Renderiza o Modal (ele fica oculto até 'showUsuarioModal' ser true) --- */}
-            <UsuarioModal 
+            <UsuarioModal
                 show={showUsuarioModal}
-                handleClose={handleModalClose} 
+                handleClose={handleModalClose}
             />
         </>
     );

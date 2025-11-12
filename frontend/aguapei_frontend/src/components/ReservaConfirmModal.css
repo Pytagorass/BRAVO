@@ -1,0 +1,40 @@
+.resumo-reserva {
+  background-color: #f8f9fa; /* Um cinza claro */
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 16px;
+  font-size: 0.95rem;
+}
+
+.resumo-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.resumo-item:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+/* Cor verde principal para os dados */
+.resumo-item strong {
+  color: #26522c; 
+  font-weight: 600;
+  text-align: right;
+}
+
+/* Cores dos Status (baseado no seu GanttChart.css) */
+.resumo-item .status-pendente {
+    color: #b8860b; /* Amarelo escuro */
+}
+.resumo-item .status-pago {
+    color: #198754; /* Verde */
+}
+.resumo-item .status-em-partes {
+    color: #0dcaf0; /* Azul Ciano */
+}

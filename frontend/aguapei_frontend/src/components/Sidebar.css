@@ -1,21 +1,25 @@
 .sidebar {
-    width: 240px; /* Largura padrão (aberta) */
+    width: 240px;
+    /* Largura padrão (aberta) */
     background-color: #ffffff;
     border-right: 1px solid #e0e0e0;
     display: flex;
     flex-direction: column;
     padding: 20px 15px;
-    flex-shrink: 0; /* Impede que o menu encolha */
-    
+    flex-shrink: 0;
+    /* Impede que o menu encolha */
+
     /* A transição agora é na LARGURA */
-    transition: width 0.3s ease-in-out; 
+    transition: width 0.3s ease-in-out;
 }
 
 /* Estado Fechado */
 .sidebar.closed {
-    width: 80px; /* Largura quando fechada (só ícones) */
+    width: 80px;
+    /* Largura quando fechada (só ícones) */
     padding: 20px 0;
-    align-items: center; /* Centraliza os ícones */
+    align-items: center;
+    /* Centraliza os ícones */
 }
 
 .sidebar-header {
@@ -23,7 +27,8 @@
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    padding: 0 10px; /* Espaçamento interno do cabeçalho */
+    padding: 0 10px;
+    /* Espaçamento interno do cabeçalho */
     margin-bottom: 30px;
 }
 
@@ -37,7 +42,8 @@
     font-weight: bold;
     font-size: 1.8em;
     margin: 0;
-    white-space: nowrap; /* Impede quebra de linha */
+    white-space: nowrap;
+    /* Impede quebra de linha */
     overflow: hidden;
 }
 
@@ -54,7 +60,7 @@
     flex-direction: column;
     gap: 8px;
     flex-grow: 1;
-    width: 100%; 
+    width: 100%;
 }
 
 .sidebar-nav a {
@@ -64,12 +70,14 @@
     border-radius: 8px;
     font-weight: 500;
     transition: background-color 0.2s, color 0.2s;
-    
+
     /* usa Flexbox para alinhar ícone e texto */
     display: flex;
     align-items: center;
-    gap: 15px; /* Espaço entre ícone e texto */
-    white-space: nowrap; /* Impede quebra de linha */
+    gap: 15px;
+    /* Espaço entre ícone e texto */
+    white-space: nowrap;
+    /* Impede quebra de linha */
     overflow: hidden;
 }
 
@@ -77,7 +85,8 @@
 .sidebar.closed .sidebar-nav a {
     justify-content: center;
     padding: 12px 0;
-    width: 60px; /* Largura do link no modo fechado */
+    width: 60px;
+    /* Largura do link no modo fechado */
     margin: 0 auto;
 }
 
@@ -127,7 +136,8 @@
     align-items: center;
     justify-content: center;
     font-weight: bold;
-    flex-shrink: 0; /* Impede que o avatar encolha */
+    flex-shrink: 0;
+    /* Impede que o avatar encolha */
 }
 
 .user-name {
@@ -149,7 +159,7 @@
     border-radius: 8px;
     cursor: pointer;
     font-weight: bold;
-    
+
     /* Alinhamento de ícone e texto */
     display: flex;
     align-items: center;
@@ -177,16 +187,17 @@
 }
 
 .user-profile-button {
-  background: none;
-  border: none;
-  padding: 0;
-  margin: 0;
-  cursor: pointer;
-  text-align: left;
-  width: 100%;
-  color: inherit; /* Herda a cor do texto do pai */
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    color: inherit;
+    /* Herda a cor do texto do pai */
 }
 
 .user-profile-button:hover .user-name {
-  text-decoration: underline;
+    text-decoration: underline;
 }
