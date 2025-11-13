@@ -265,3 +265,60 @@ AFTER UPDATE OF tipo_hospede OR DELETE ON reserva_hospede
 FOR EACH ROW
 WHEN (OLD.tipo_hospede = 'Titular') -- Só roda se a linha antiga era de um Titular
 EXECUTE FUNCTION check_reserva_valida();
+
+
+
+
+CREATE OR REPLACE FUNCTION public.check_reserva_valida()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $function$
+DECLARE
+    v_id_reserva INT;
+    v_is_valid BOOLEAN;
+BEGIN
+    -- 1. Determina o ID da reserva
+    IF (TG_OP = 'DELETE' OR TG_OP = 'UPDATE') THEN
+        IF (TG_TABLE_NAME = 'reserva') THEN 
+            v_id_reserva := OLD.id_reserva;
+        ELSE 
+            v_id_reserva := OLD.fk_reserva; 
+        END IF;
+    ELSE -- INSERT
+        IF (TG_TABLE_NAME = 'reserva') THEN 
+            v_id_reserva := NEW.id_reserva;
+        ELSE 
+            v_id_reserva := NEW.fk_reserva; 
+        END IF;
+    END IF;
+
+    -- 2. Verifica a lógica: A reserva é válida se existe um titular
+    SELECT EXISTS (
+        SELECT 1 
+        FROM reserva_hospede rh
+        WHERE rh.fk_reserva = v_id_reserva AND rh.tipo_hospede = 'Titular'
+    )
+    INTO v_is_valid;
+
+    -- 3. Se não for válida, bloqueia
+    IF NOT v_is_valid THEN
+        RAISE EXCEPTION 'ERRO: REGRA VIOLADA: A reserva (ID=%) deve ter um hóspede titular associado.', v_id_reserva;
+    END IF;
+
+    -- 4. Permite a operação
+    IF (TG_OP = 'DELETE') THEN 
+        RETURN OLD;
+    ELSE 
+        RETURN NEW;
+    END IF;
+END;
+$function$;
+
+
+
+CREATE TRIGGER trg_check_reserva_on_hospede_change
+AFTER INSERT OR UPDATE OR DELETE
+ON reserva_hospede
+DEFERRABLE INITIALLY DEFERRED
+FOR EACH ROW
+EXECUTE FUNCTION check_reserva_valida();

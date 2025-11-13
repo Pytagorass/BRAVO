@@ -1,6 +1,22 @@
+// frontend/src/components/NovaReservaModal.js
+
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Form, Alert, Spinner, Row, Col, InputGroup } from 'react-bootstrap';
-import { fetchHospedes, fetchQuartos, createReserva, updateReservaCompleta } from '../services/api';
+import {
+  Modal,
+  Button,
+  Form,
+  Alert,
+  Spinner,
+  Row,
+  Col,
+  InputGroup,
+} from 'react-bootstrap';
+import {
+  fetchHospedes,
+  fetchQuartos,
+  createReserva,
+  updateReservaCompleta,
+} from '../services/api';
 import { toast } from 'react-toastify';
 import ClienteModal from './ClienteModal';
 import ReservaConfirmModal from './ReservaConfirmModal';
@@ -47,9 +63,14 @@ function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar 
         fetchHospedes(),
         fetchQuartos(),
       ]);
-      setHospedes(hospedesResponse.hospedes);
-      setQuartos(quartosData);
+
+      console.log('DEBUG: Resposta de Hóspedes:', hospedesResponse);
+      console.log('DEBUG: Resposta de Quartos:', quartosData);
+
+      setHospedes(hospedesResponse || []);
+      setQuartos(quartosData || []);
     } catch (err) {
+      console.error('DEBUG: Falha ao carregar dados:', err);
       setError(err.message || 'Falha ao carregar dados. Tente fechar e abrir o modal.');
     } finally {
       setLoading(false);
@@ -71,7 +92,9 @@ function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar 
           forma_pagamento: reservaParaEditar.status_pagamento || 'Pendente',
           observacao_reserva: reservaParaEditar.observacao_reserva || '',
         });
-        const acompanhanteIds = (reservaParaEditar.acompanhantes || []).map(a => a.id_hospede);
+        const acompanhanteIds = (reservaParaEditar.acompanhantes || []).map(
+          (a) => a.id_hospede
+        );
         setAcompanhantes(acompanhanteIds);
       } else {
         setFormData(getInitialState());
@@ -82,7 +105,9 @@ function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar 
 
   useEffect(() => {
     if (formData.checkin && formData.checkout && formData.quartoId) {
-      const selectedQuarto = quartos.find(q => q.id_quarto === parseInt(formData.quartoId));
+      const selectedQuarto = (quartos || []).find(
+        (q) => q.id_quarto === parseInt(formData.quartoId)
+      );
       if (selectedQuarto) {
         const start = moment(formData.checkin);
         const end = moment(formData.checkout);
@@ -93,12 +118,12 @@ function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar 
             : diffDays === 0
             ? selectedQuarto.valor_diaria
             : 0;
-        setFormData(prev => ({ ...prev, valor_total: total }));
+        setFormData((prev) => ({ ...prev, valor_total: total }));
       }
     }
   }, [formData.checkin, formData.checkout, formData.quartoId, quartos]);
 
-  const handleChange = e => {
+  const handleChange = (e) => {
     if (e.target.name === 'checkin' || e.target.name === 'checkout') {
       if (error === 'Data de Check-out deve ser após o Check-in.') setError(null);
     }
@@ -117,14 +142,14 @@ function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar 
     }
   };
 
-  const handleRemoveAcompanhante = index => {
+  const handleRemoveAcompanhante = (index) => {
     setAcompanhantes(acompanhantes.filter((_, i) => i !== index));
   };
 
-  const handleClienteSaveSuccess = newCliente => {
+  const handleClienteSaveSuccess = (newCliente) => {
     setShowClienteModal(false);
-    setHospedes(prev => [...prev, newCliente]);
-    setFormData(prev => ({ ...prev, titularId: newCliente.id_hospede }));
+    setHospedes((prev) => [...prev, newCliente]);
+    setFormData((prev) => ({ ...prev, titularId: newCliente.id_hospede }));
     toast.success(`${newCliente.nome_hospede} criado e selecionado.`);
   };
 
@@ -134,7 +159,7 @@ function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar 
     handleClose();
   };
 
-  const handleSubmit = async e => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
 
@@ -143,7 +168,7 @@ function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar 
       return;
     }
 
-    const acompanhanteIds = acompanhantes.filter(id => id);
+    const acompanhanteIds = acompanhantes.filter((id) => id);
     const finalPayload = {
       fk_hospede_id_hospede: formData.titularId,
       quartos: [formData.quartoId],
@@ -156,8 +181,12 @@ function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar 
       acompanhantes: acompanhanteIds,
     };
 
-    const titular = hospedes.find(h => h.id_hospede === parseInt(formData.titularId));
-    const quarto = quartos.find(q => q.id_quarto === parseInt(formData.quartoId));
+    const titular = (hospedes || []).find(
+      (h) => h.id_hospede === parseInt(formData.titularId)
+    );
+    const quarto = (quartos || []).find(
+      (q) => q.id_quarto === parseInt(formData.quartoId)
+    );
 
     setConfirmData({
       titularNome: titular ? titular.nome_hospede : 'N/A',
@@ -178,7 +207,10 @@ function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar 
     try {
       let responseData;
       if (isEditMode) {
-        responseData = await updateReservaCompleta(reservaParaEditar.id_reserva_quarto, payload);
+        responseData = await updateReservaCompleta(
+          reservaParaEditar.id_reserva_quarto,
+          payload
+        );
         toast.success('Reserva atualizada com sucesso!');
       } else {
         responseData = await createReserva(payload);
@@ -208,7 +240,8 @@ function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar 
     }
   };
 
-  const hospedesDisponiveis = hospedes.filter(h => h.id_hospede !== parseInt(formData.titularId));
+  const hospedesDisponiveis =
+    hospedes?.filter((h) => h.id_hospede !== parseInt(formData.titularId)) ?? [];
 
   return (
     <>
@@ -244,7 +277,7 @@ function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar 
                           required
                         >
                           <option value="">Selecione um hóspede</option>
-                          {hospedes.map(h => (
+                          {(hospedes || []).map((h) => (
                             <option key={h.id_hospede} value={h.id_hospede}>
                               {h.nome_hospede}
                             </option>
@@ -259,6 +292,7 @@ function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar 
                       </InputGroup>
                     </Form.Group>
                   </Col>
+
                   <Col md={6}>
                     <Form.Group controlId="formQuarto">
                       <Form.Label>Quarto*</Form.Label>
@@ -269,7 +303,7 @@ function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar 
                         required
                       >
                         <option value="">Selecione um quarto</option>
-                        {quartos.map(q => (
+                        {(quartos || []).map((q) => (
                           <option key={q.id_quarto} value={q.id_quarto}>
                             {q.numero} ({q.tipo_quarto}) - R$ {q.valor_diaria}
                           </option>
@@ -280,15 +314,21 @@ function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar 
                 </Row>
 
                 {acompanhantes.map((acompId, index) => (
-                  <Form.Group key={index} className="mb-3" controlId={`formAcompanhante${index}`}>
+                  <Form.Group
+                    key={index}
+                    className="mb-3"
+                    controlId={`formAcompanhante${index}`}
+                  >
                     <Form.Label>Acompanhante {index + 1}</Form.Label>
                     <InputGroup>
                       <Form.Select
                         value={acompId}
-                        onChange={e => handleAcompanhanteChange(index, e.target.value)}
+                        onChange={(e) =>
+                          handleAcompanhanteChange(index, e.target.value)
+                        }
                       >
                         <option value="">Selecione um acompanhante</option>
-                        {hospedesDisponiveis.map(h => (
+                        {hospedesDisponiveis.map((h) => (
                           <option key={h.id_hospede} value={h.id_hospede}>
                             {h.nome_hospede}
                           </option>
@@ -327,6 +367,7 @@ function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar 
                       />
                     </Form.Group>
                   </Col>
+
                   <Col md={6}>
                     <Form.Group controlId="formCheckout">
                       <Form.Label>Check-out*</Form.Label>
@@ -345,7 +386,9 @@ function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar 
                   <h3>
                     Valor Total:{' '}
                     <span className="valor-total-preco">
-                      R$ {parseFloat(formData.valor_total).toFixed(2).replace('.', ',')}
+                      R$ {parseFloat(formData.valor_total)
+                        .toFixed(2)
+                        .replace('.', ',')}
                     </span>
                   </h3>
                 </div>
@@ -361,7 +404,7 @@ function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar 
                         value={formData.forma_pagamento}
                         onChange={handleChange}
                       >
-                        {PAGAMENTO_CHOICES.map(opt => (
+                        {PAGAMENTO_CHOICES.map((opt) => (
                           <option key={opt.value} value={opt.value}>
                             {opt.label}
                           </option>
@@ -419,7 +462,7 @@ function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar 
           show={showConfirm}
           handleClose={() => setShowConfirm(false)}
           confirmData={confirmData}
-          handleConfirm={handleExecuteSubmit}
+          onConfirm={handleExecuteSubmit}
           isSaving={isSaving}
         />
       )}

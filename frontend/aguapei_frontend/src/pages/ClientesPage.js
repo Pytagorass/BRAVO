@@ -1,54 +1,45 @@
-// frontend/src/pages/ClientesPage.js
-
+// src/pages/ClientesPage.js
 import React, { useState, useEffect, useCallback } from 'react';
-import { fetchHospedes, deleteHospede, updateHospedeStatus } from '../services/api';
+import { Spinner, Alert, Button, ButtonGroup } from 'react-bootstrap';
 import { toast } from 'react-toastify';
-import { Spinner, Alert, Button, ButtonGroup, Pagination } from 'react-bootstrap';
+
+import { fetchHospedes, deleteHospede, updateHospedeStatus } from '../services/api';
 import ClienteModal from '../components/ClienteModal';
 import ConfirmacaoModal from '../components/ConfirmacaoModal';
-
 import './ClientesPage.css';
-
-const CLIENTES_PER_PAGE = 10;
 
 const ClientesPage = () => {
   const [clientes, setClientes] = useState([]);
+  const [viewStatus, setViewStatus] = useState('Ativo');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [viewStatus, setViewStatus] = useState('Ativo');
 
-  // Paginação
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
-  const totalPages = Math.ceil(totalCount / CLIENTES_PER_PAGE);
-
-  // Modais
   const [showClienteModal, setShowClienteModal] = useState(false);
   const [clienteSelecionado, setClienteSelecionado] = useState(null);
+
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [clienteParaInativar, setClienteParaInativar] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Carrega clientes com paginação e status
+  // 🔄 Carregar clientes conforme o status atual (Ativo / Inativo)
   const carregarClientes = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await fetchHospedes(viewStatus, currentPage, CLIENTES_PER_PAGE);
-      setClientes(data.hospedes);
-      setTotalCount(data.total_count);
+      const data = await fetchHospedes(viewStatus);
+      setClientes(data);
     } catch (err) {
       setError(err.message || 'Falha ao carregar a lista de clientes.');
     } finally {
       setLoading(false);
     }
-  }, [viewStatus, currentPage]);
+  }, [viewStatus]);
 
   useEffect(() => {
     carregarClientes();
   }, [carregarClientes]);
 
-  // Modais
+  // 🧩 Ações de modal
   const handleShowNovoCliente = () => {
     setClienteSelecionado(null);
     setShowClienteModal(true);
@@ -59,11 +50,18 @@ const ClientesPage = () => {
     setShowClienteModal(true);
   };
 
-  const handleSaveSuccess = () => {
+  const handleSaveSuccess = (clienteSalvo) => {
     setShowClienteModal(false);
-    carregarClientes();
+    setClientes((prev) => {
+      const existe = prev.find((c) => c.id_hospede === clienteSalvo.id_hospede);
+      return existe
+        ? prev.map((c) => (c.id_hospede === clienteSalvo.id_hospede ? clienteSalvo : c))
+        : [clienteSalvo, ...prev];
+    });
+    toast.success('Cliente salvo com sucesso!');
   };
 
+  // 🚫 Inativar cliente (soft delete)
   const handleShowInativar = (cliente) => {
     setClienteParaInativar(cliente);
     setShowConfirmModal(true);
@@ -74,79 +72,46 @@ const ClientesPage = () => {
     setIsDeleting(true);
     try {
       await deleteHospede(clienteParaInativar.id_hospede);
+      setClientes((prev) =>
+        prev.filter((c) => c.id_hospede !== clienteParaInativar.id_hospede)
+      );
       toast.success(`Cliente "${clienteParaInativar.nome_hospede}" inativado com sucesso.`);
+    } catch (err) {
+      toast.error(err.message || 'Erro ao inativar cliente.');
+    } finally {
+      setIsDeleting(false);
       setShowConfirmModal(false);
       setClienteParaInativar(null);
-
-      if (clientes.length === 1 && currentPage > 1) {
-        setCurrentPage(currentPage - 1);
-      } else {
-        carregarClientes();
-      }
-    } catch (err) {
-      toast.error(err.message || "Erro ao inativar cliente.");
-      setIsDeleting(false);
     }
   };
 
+  // ✅ Reativar cliente
   const handleReativar = async (cliente) => {
     const toastId = toast.loading(`Reativando ${cliente.nome_hospede}...`);
     try {
       await updateHospedeStatus(cliente.id_hospede, 'Ativo');
+      setClientes((prev) =>
+        prev.filter((c) => c.id_hospede !== cliente.id_hospede)
+      );
       toast.update(toastId, {
-        render: `${cliente.nome_hospede} reativado!`,
-        type: "success",
+        render: `${cliente.nome_hospede} reativado com sucesso!`,
+        type: 'success',
         isLoading: false,
-        autoClose: 3000
+        autoClose: 3000,
       });
-
-      if (clientes.length === 1 && currentPage > 1) {
-        setCurrentPage(currentPage - 1);
-      } else {
-        carregarClientes();
-      }
     } catch (err) {
       toast.update(toastId, {
-        render: err.message || "Erro ao reativar.",
-        type: "error",
+        render: err.message || 'Erro ao reativar cliente.',
+        type: 'error',
         isLoading: false,
-        autoClose: 5000
+        autoClose: 5000,
       });
     }
   };
 
-  // Paginação
-  const renderPagination = () => {
-    if (totalPages <= 1) return null;
-    const items = [];
-    for (let number = 1; number <= totalPages; number++) {
-      items.push(
-        <Pagination.Item
-          key={number}
-          active={number === currentPage}
-          onClick={() => setCurrentPage(number)}
-        >
-          {number}
-        </Pagination.Item>
-      );
-    }
-    return (
-      <Pagination>
-        <Pagination.Prev
-          onClick={() => setCurrentPage(p => p - 1)}
-          disabled={currentPage === 1}
-        />
-        {items}
-        <Pagination.Next
-          onClick={() => setCurrentPage(p => p + 1)}
-          disabled={currentPage === totalPages}
-        />
-      </Pagination>
-    );
-  };
-
+  // 📋 Conteúdo da tabela
   const renderContent = () => {
-    if (loading) {
+    if (loading && clientes.length === 0) {
       return (
         <div className="text-center p-5">
           <Spinner animation="border" variant="success" />
@@ -157,16 +122,18 @@ const ClientesPage = () => {
 
     if (error) {
       return (
-        <Alert variant="danger">
-          <Alert.Heading>Erro ao Carregar Clientes</Alert.Heading>
-          <p>{error}</p>
-          <Button onClick={carregarClientes} variant="danger">Tentar Novamente</Button>
+        <Alert variant="danger" className="text-center">
+          {error}
         </Alert>
       );
     }
 
-    if (clientes.length === 0) {
-      return <div className="text-center p-5">Nenhum cliente {viewStatus.toLowerCase()} encontrado.</div>;
+    if (clientes.length === 0 && !loading) {
+      return (
+        <div className="text-center p-5">
+          Nenhum cliente {viewStatus.toLowerCase()} encontrado.
+        </div>
+      );
     }
 
     return (
@@ -182,12 +149,15 @@ const ClientesPage = () => {
             </tr>
           </thead>
           <tbody>
-            {clientes.map(cliente => (
+            {clientes.map((cliente) => (
               <tr key={cliente.id_hospede}>
                 <td>{cliente.nome_hospede}</td>
                 <td>
-                  {cliente.email_hospede || 'Sem email'}<br />
-                  <small className="text-muted">{cliente.telefone || 'Sem telefone'}</small>
+                  {cliente.email_hospede || 'Sem email'}
+                  <br />
+                  <small className="text-muted">
+                    {cliente.telefone || 'Sem telefone'}
+                  </small>
                 </td>
                 <td>{cliente.pais_origem}</td>
                 <td>
@@ -198,15 +168,28 @@ const ClientesPage = () => {
                 <td>
                   {viewStatus === 'Ativo' ? (
                     <>
-                      <Button size="sm" variant="outline-secondary" onClick={() => handleShowEditarCliente(cliente)}>
+                      <Button
+                        size="sm"
+                        variant="outline-secondary"
+                        onClick={() => handleShowEditarCliente(cliente)}
+                      >
                         Editar
                       </Button>
-                      <Button size="sm" variant="outline-danger" className="ms-2" onClick={() => handleShowInativar(cliente)}>
+                      <Button
+                        size="sm"
+                        variant="outline-danger"
+                        className="ms-2"
+                        onClick={() => handleShowInativar(cliente)}
+                      >
                         Inativar
                       </Button>
                     </>
                   ) : (
-                    <Button size="sm" variant="outline-success" onClick={() => handleReativar(cliente)}>
+                    <Button
+                      size="sm"
+                      variant="outline-success"
+                      onClick={() => handleReativar(cliente)}
+                    >
                       Reativar
                     </Button>
                   )}
@@ -221,42 +204,41 @@ const ClientesPage = () => {
 
   return (
     <div className="clientes-page">
-      <div className="page-header d-flex justify-content-between align-items-center">
+      <div className="page-header">
         <h1>Gerenciamento de Clientes</h1>
-      </div>
-      <div className="page-actions mb-3"> 
-        <ButtonGroup className="me-2">
+        <div>
+          <ButtonGroup className="me-2">
+            <Button
+              variant={viewStatus === 'Ativo' ? 'success' : 'outline-secondary'}
+              onClick={() => setViewStatus('Ativo')}
+              style={
+                viewStatus === 'Ativo'
+                  ? { backgroundColor: '#26522c', borderColor: '#26522c' }
+                  : {}
+              }
+            >
+              Ativos
+            </Button>
+            <Button
+              variant={viewStatus === 'Inativo' ? 'danger' : 'outline-secondary'}
+              onClick={() => setViewStatus('Inativo')}
+            >
+              Inativos
+            </Button>
+          </ButtonGroup>
+
           <Button
-            variant={viewStatus === 'Ativo' ? "success" : "outline-secondary"}
-            style={viewStatus === 'Ativo' ? { backgroundColor: '#26522c', borderColor: '#26522c' } : {}}
-            onClick={() => { setViewStatus('Ativo'); setCurrentPage(1); }}
+            variant="primary"
+            style={{ backgroundColor: '#26522c', borderColor: '#26522c' }}
+            onClick={handleShowNovoCliente}
+            disabled={viewStatus === 'Inativo'}
           >
-            Ativos
+            + Novo Cliente
           </Button>
-          <Button
-            variant={viewStatus === 'Inativo' ? "danger" : "outline-secondary"}
-            onClick={() => { setViewStatus('Inativo'); setCurrentPage(1); }}
-          >
-            Inativos
-          </Button>
-        </ButtonGroup>
-        <Button
-          variant="primary"
-          style={{ backgroundColor: '#26522c', borderColor: '#26522c' }}
-          onClick={handleShowNovoCliente}
-          disabled={viewStatus === 'Inativo'}
-        >
-          + Novo Cliente
-        </Button>
+        </div>
       </div>
 
-      <div className="page-content">
-        {renderContent()}
-      </div>
-
-      <div className="d-flex justify-content-center">
-        {renderPagination()}
-      </div>
+      <div className="page-content">{renderContent()}</div>
 
       <ClienteModal
         show={showClienteModal}
@@ -272,7 +254,7 @@ const ClientesPage = () => {
           handleConfirm={handleConfirmInativar}
           loading={isDeleting}
           title="Confirmar Inativação"
-          body={`Tem certeza que deseja INATIVAR o cliente "${clienteParaInativar.nome_hospede}"?`}
+          body={`Tem certeza que deseja INATIVAR o cliente "${clienteParaInativar.nome_hospede}"? Ele não poderá ser selecionado para novas reservas.`}
           confirmText="Sim, Inativar"
           confirmVariant="danger"
         />

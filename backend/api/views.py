@@ -183,21 +183,21 @@ def get_agenda_reservas(request):
 # VIEW DE CRIAÇÃO DE RESERVA (Protegida)
 # -----------------------------------------------------------------
 @csrf_exempt
-@token_required 
-@transaction.atomic # 🎓 @transaction.atomic garante que ou tudo (5 inserts) ou nada acontece
+@token_required
+@transaction.atomic  # 🎓 Garante que ou tudo (5 inserts) ou nada acontece
 @require_http_methods(["POST"])
 def reservas_view(request):
     """
     View para o POST: Cria uma nova reserva (transacional).
+
     🎓 REATORADO:
-    1. SQL de Overbooking modificado para retornar *detalhes do conflito*.
+    1. SQL de Overbooking modificado para retornar detalhes do conflito.
     2. Usa error_response com status 409 (Conflict) e code 'OVERBOOK_CONFLICT'.
     3. Usa success_response com status 201 (Created).
     """
     try:
-        data = json.loads(request.body)
-        
         # 1. Extrai os dados do payload
+        data = json.loads(request.body)
         titular_id = int(data.get('fk_hospede_id_hospede'))
         quarto_id = int(data.get('quartos')[0])
         checkin = data.get('checkin')
@@ -209,20 +209,20 @@ def reservas_view(request):
         fk_usuario_logado = request.user_token_payload.get('id_usuario')
 
         with connection.cursor() as cursor:
-        
-            # 🎓 2. VALIDAÇÃO DE OVERBOOKING (SQL Modificado)
-            #    Agora seleciona os dados do conflito para enviar ao front-end
+            # 🎓 2. Validação de Overbooking (SQL Modificado)
             sql_check_overbooking = """
-                SELECT 
-                    rq.checkin, 
-                    rq.checkout, 
+                SELECT
+                    rq.checkin,
+                    rq.checkout,
                     h.nome_hospede AS nome_titular_conflito
                 FROM reserva_quarto rq
                 JOIN reserva r ON rq.fk_reserva = r.id_reserva
-                LEFT JOIN reserva_hospede rh ON r.id_reserva = rh.fk_reserva AND rh.tipo_hospede = 'Titular'
+                LEFT JOIN reserva_hospede rh
+                    ON r.id_reserva = rh.fk_reserva
+                    AND rh.tipo_hospede = 'Titular'
                 LEFT JOIN hospede h ON rh.fk_hospede = h.id_hospede
-                WHERE rq.fk_quarto = %s 
-                  AND (DATE %s, DATE %s) OVERLAPS (rq.checkin, rq.checkout) 
+                WHERE rq.fk_quarto = %s
+                  AND (DATE %s, DATE %s) OVERLAPS (rq.checkin, rq.checkout)
                   AND r.status_reserva != 'Cancelada'
                 LIMIT 1;
             """
@@ -230,17 +230,23 @@ def reservas_view(request):
             conflito = dictfetchall(cursor)
 
             if conflito:
-                # 🎓 RESPOSTA PADRONIZADA DE CONFLITO (Sua Solicitação)
+                # 🎓 Resposta padronizada de conflito
                 return error_response(
                     message="Este quarto já está ocupado no período solicitado.",
                     code="OVERBOOK_CONFLICT",
-                    status_code=409, # 409 Conflict
-                    details=conflito[0] # Envia os detalhes do conflito
+                    status_code=409,  # 409 Conflict
+                    details=conflito[0]  # Envia os detalhes do conflito
                 )
 
             # 3. INSERT 1: Tabela 'reserva'
             sql_reserva = """
-                INSERT INTO reserva (valor_total, observacao_reserva, fk_usuario, status_reserva, status_pagamento)
+                INSERT INTO reserva (
+                    valor_total,
+                    observacao_reserva,
+                    fk_usuario,
+                    status_reserva,
+                    status_pagamento
+                )
                 VALUES (%s, %s, %s, 'Agendada', %s)
                 RETURNING id_reserva;
             """
@@ -250,27 +256,43 @@ def reservas_view(request):
 
             # 4. INSERT 2: Tabela 'reserva_quarto'
             sql_quarto = """
-                INSERT INTO reserva_quarto (fk_reserva, fk_quarto, checkin, checkout, valor_diaria_cobrado)
-                VALUES (%s, %s, %s, %s, (SELECT valor_diaria FROM quarto WHERE id_quarto = %s))
+                INSERT INTO reserva_quarto (
+                    fk_reserva,
+                    fk_quarto,
+                    checkin,
+                    checkout,
+                    valor_diaria_cobrado
+                )
+                VALUES (
+                    %s, %s, %s, %s,
+                    (SELECT valor_diaria FROM quarto WHERE id_quarto = %s)
+                )
                 RETURNING id_reserva_quarto;
             """
             params_quarto = [nova_reserva_id, quarto_id, checkin, checkout, quarto_id]
             cursor.execute(sql_quarto, params_quarto)
-            nova_reserva_quarto_id = cursor.fetchone()[0] 
+            nova_reserva_quarto_id = cursor.fetchone()[0]
 
             # 5. INSERT 3: Titular
-            sql_titular = "INSERT INTO reserva_hospede (fk_reserva, fk_hospede, tipo_hospede) VALUES (%s, %s, 'Titular');"
+            sql_titular = """
+                INSERT INTO reserva_hospede (fk_reserva, fk_hospede, tipo_hospede)
+                VALUES (%s, %s, 'Titular');
+            """
             cursor.execute(sql_titular, [nova_reserva_id, titular_id])
 
             # 6. INSERT 4...N: Acompanhantes
             if acompanhante_ids:
-                sql_acompanhante = "INSERT INTO reserva_hospede (fk_reserva, fk_hospede, tipo_hospede) VALUES (%s, %s, 'Acompanhante');"
+                sql_acompanhante = """
+                    INSERT INTO reserva_hospede (fk_reserva, fk_hospede, tipo_hospede)
+                    VALUES (%s, %s, 'Acompanhante');
+                """
                 params_acompanhantes = [(nova_reserva_id, ac_id) for ac_id in acompanhante_ids]
                 cursor.executemany(sql_acompanhante, params_acompanhantes)
-            
-            # 7. Busca dados para o front-end
+
+            # 7. Busca dados adicionais para resposta
             cursor.execute("SELECT nome_hospede FROM hospede WHERE id_hospede = %s", [titular_id])
             nome_titular = cursor.fetchone()[0]
+
             cursor.execute("SELECT numero FROM quarto WHERE id_quarto = %s", [quarto_id])
             numero_quarto = cursor.fetchone()[0]
 
@@ -284,14 +306,15 @@ def reservas_view(request):
             'status_pagamento': status_pagamento,
             'id_quarto': quarto_id,
             'numero_quarto': numero_quarto,
-            'nome_titular': nome_titular
+            'nome_titular': nome_titular,
         }
-        
-        # 9. 🎓 RESPOSTA PADRONIZADA (201 Created)
+
+        # 9. 🎓 Resposta padronizada (201 Created)
         return success_response(nova_reserva_obj, "RESERVA_CREATED", 201)
-    
+
     except IntegrityError as e:
         return error_response(f'Erro de integridade no banco: {str(e)}', 'DB_INTEGRITY_ERROR', 400)
+
     except Exception as e:
         return error_response(str(e), 'SERVER_ERROR', 500)
 
@@ -299,8 +322,6 @@ def reservas_view(request):
 # -----------------------------------------------------------------
 # VIEW: EDITAR RESERVA (Formulário Completo)
 # -----------------------------------------------------------------
-# Em /aguapei_backend/api/views.py
-
 @csrf_exempt
 @token_required
 @transaction.atomic
@@ -308,37 +329,27 @@ def reservas_view(request):
 def edit_reserva_view(request, reserva_quarto_id):
     """
     View para 'Editar' a reserva (Formulário completo).
-    🎓 REFATORADO:
-    1. Desliga os gatilhos (Triggers) temporariamente para
-       evitar o erro "REGRA VIOLADA" durante o "delete-e-reinsere".
-    2. Implementa a lógica de 'isReservaGrupo' (nome provisório).
+    🎓 REATORADO:
+    1. Adicionado SELECT ... FOR UPDATE (Controle de Concorrência).
+    2. SQL de Overbooking modificado para retornar *detalhes do conflito*.
+    3. Padronização de todas as respostas (success/error).
     """
-    
     try:
         data = json.loads(request.body)
         
-        # 1. 🎓 Lógica de Grupo/Agência (vinda do front-end)
-        titular_id = data.get('fk_hospede_id_hospede')
-        nome_provisorio = data.get('nome_provisorio')
-        
-        # Se for reserva de grupo, titularId será nulo
-        isReservaGrupo = nome_provisorio is not None
-        
+        titular_id = int(data.get('fk_hospede_id_hospede'))
         quarto_id = int(data.get('quartos')[0])
         checkin = data.get('checkin')
         checkout = data.get('checkout')
         valor_total = data.get('valor_total')
-        status_pagamento = data.get('status_pagamento') # Mudado de 'forma_pagamento'
+        status_pagamento = data.get('forma_pagamento', 'Pendente')
         observacao = data.get('observacao_reserva')
-        
-        # Se for grupo, ignora acompanhantes
-        acompanhante_ids = [] if isReservaGrupo else data.get('acompanhantes', [])
-
+        acompanhante_ids = data.get('acompanhantes', [])
         fk_usuario_logado = request.user_token_payload.get('id_usuario')
 
         with connection.cursor() as cursor:
             
-            # 2. Busca o ID da reserva principal
+            # 3. Busca o ID da reserva principal
             cursor.execute("SELECT fk_reserva FROM reserva_quarto WHERE id_reserva_quarto = %s", [reserva_quarto_id])
             reserva_link = cursor.fetchone()
             if not reserva_link:
@@ -346,12 +357,17 @@ def edit_reserva_view(request, reserva_quarto_id):
             
             id_reserva_principal = reserva_link[0]
 
-            # 3. 🎓 Trava a linha da 'reserva' (Controle de Concorrência)
+            # 🎓 CONTROLE DE CONCORRÊNCIA (Sua Solicitação)
+            # Trava a linha da 'reserva' principal. Ninguém mais pode
+            # editar ou cancelar esta reserva até que nossa transação termine (COMMIT).
             cursor.execute("SELECT 1 FROM reserva WHERE id_reserva = %s FOR UPDATE", [id_reserva_principal])
 
-            # 4. VALIDAÇÃO DE OVERBOOKING (Excluindo a própria reserva)
+            # 4. VALIDAÇÃO DE OVERBOOKING (Modificada para detalhes)
             sql_check_overbooking = """
-                SELECT r.id_reserva, h.nome_hospede AS nome_titular_conflito
+                SELECT 
+                    rq.checkin, 
+                    rq.checkout, 
+                    h.nome_hospede AS nome_titular_conflito
                 FROM reserva_quarto rq
                 JOIN reserva r ON rq.fk_reserva = r.id_reserva
                 LEFT JOIN reserva_hospede rh ON r.id_reserva = rh.fk_reserva AND rh.tipo_hospede = 'Titular'
@@ -373,18 +389,16 @@ def edit_reserva_view(request, reserva_quarto_id):
                 )
 
             # 5. UPDATE 1: Tabela 'reserva'
-            # 🎓 Atualiza o nome provisório (será NULL se não for grupo)
             sql_update_reserva = """
                 UPDATE reserva
                 SET 
-                    valor_total = %s, observacao_reserva = %s, fk_usuario = %s, 
-                    status_pagamento = %s, nome_provisorio = %s
+                    valor_total = %s, observacao_reserva = %s, fk_usuario = %s, status_pagamento = %s
                 WHERE id_reserva = %s;
             """
-            params_reserva = [valor_total, observacao, fk_usuario_logado, status_pagamento, nome_provisorio, id_reserva_principal]
+            params_reserva = [valor_total, observacao, fk_usuario_logado, status_pagamento, id_reserva_principal]
             cursor.execute(sql_update_reserva, params_reserva)
 
-            # 6. UPDATE 2: Tabela 'reserva_quarto' (Datas, Quarto)
+            # 6. UPDATE 2: Tabela 'reserva_quarto'
             sql_update_rq = """
                 UPDATE reserva_quarto
                 SET
@@ -395,48 +409,25 @@ def edit_reserva_view(request, reserva_quarto_id):
             params_rq = [quarto_id, checkin, checkout, quarto_id, reserva_quarto_id]
             cursor.execute(sql_update_rq, params_rq)
 
-            # 7. 🎓 O "PULO DO GATO": Desliga os gatilhos (Triggers)
-            #    Isso impede que o trg_check_reserva_valida() dispare
-            #    no meio da nossa operação de "delete-e-reinsere".
-            cursor.execute("SET session_replication_role = 'replica';")
-
-            # 7.1. Deleta todos os hóspedes antigos
+            # 7. UPDATE 3: Hóspedes (Delete-e-reinsere)
             cursor.execute("DELETE FROM reserva_hospede WHERE fk_reserva = %s", [id_reserva_principal])
-            
-            nome_final_titular = nome_provisorio # Padrão
-            
-            # 7.2. Re-insere o Titular (APENAS se não for reserva de grupo)
-            if not isReservaGrupo and titular_id:
-                sql_titular = "INSERT INTO reserva_hospede (fk_reserva, fk_hospede, tipo_hospede) VALUES (%s, %s, 'Titular');"
-                cursor.execute(sql_titular, [id_reserva_principal, titular_id])
-                
-                # Busca o nome real para a resposta
-                cursor.execute("SELECT nome_hospede FROM hospede WHERE id_hospede = %s", [titular_id])
-                nome_final_titular = cursor.fetchone()[0]
-
-            # 7.3. Re-insere os Acompanhantes
-            if not isReservaGrupo and acompanhante_ids:
+            sql_titular = "INSERT INTO reserva_hospede (fk_reserva, fk_hospede, tipo_hospede) VALUES (%s, %s, 'Titular');"
+            cursor.execute(sql_titular, [id_reserva_principal, titular_id])
+            if acompanhante_ids:
                 sql_acompanhante = "INSERT INTO reserva_hospede (fk_reserva, fk_hospede, tipo_hospede) VALUES (%s, %s, 'Acompanhante');"
                 params_acompanhantes = [(id_reserva_principal, ac_id) for ac_id in acompanhante_ids]
                 cursor.executemany(sql_acompanhante, params_acompanhantes)
-
-            # 7.4. 🎓 RELIGA OS GATILHOS (Triggers)
-            cursor.execute("SET session_replication_role = 'origin';")
 
             # 8. Busca o objeto completo para retornar
             # (Usando a query da view get_reserva_detalhes)
             reserva_obj = _get_reserva_detalhes_internal(cursor, reserva_quarto_id)
             if not reserva_obj:
                  return error_response('Reserva não encontrada após atualização.', 'NOT_FOUND', 404)
-            
-            # 🎓 Garante que o nome_titular correto (Agência ou Hóspede) seja enviado
-            reserva_obj['nome_titular'] = nome_final_titular
 
-        # 9. Fim da transação (COMMIT)
+        # 9. Retorna o objeto completo e atualizado
         return success_response(reserva_obj, "RESERVA_UPDATED")
 
     except Exception as e:
-        # Se algo der errado, a transação faz ROLLBACK
         return error_response(str(e), 'SERVER_ERROR', 500)
 
 # -----------------------------------------------------------------
@@ -513,48 +504,22 @@ def hospedes_view(request):
     
     # MÉTODO GET (Filtra por status Ativo/Inativo)
     if request.method == 'GET':
+        status = request.GET.get('status', 'Ativo')
+        if status not in ['Ativo', 'Inativo']:
+            status = 'Ativo'
+
+        sql_query = """
+            SELECT id_hospede, nome_hospede, email_hospede, telefone, 
+                   pais_origem, cpf, passaporte 
+            FROM hospede 
+            WHERE ativo = %s
+            ORDER BY nome_hospede;
+        """
         try:
-            # 1. 🎓 Pega os parâmetros da URL. Define padrões.
-            status = request.GET.get('status', 'Ativo')
-            if status not in ['Ativo', 'Inativo']:
-                status = 'Ativo'
-            
-            # Pega a página atual. O padrão é 1.
-            page = int(request.GET.get('page', 1))
-            # Pega o limite por página. O padrão é 10.
-            limit = int(request.GET.get('limit', 10))
-            
-            # Calcula o OFFSET (quantos registros pular)
-            # Página 1: (1 - 1) * 10 = 0 (pula 0)
-            # Página 2: (2 - 1) * 10 = 10 (pula 10)
-            offset = (page - 1) * limit
-
             with connection.cursor() as cursor:
-                
-                # 2. 🎓 QUERY 1: Obter o NÚMERO TOTAL de clientes (para os botões)
-                sql_count = "SELECT COUNT(*) FROM hospede WHERE ativo = %s"
-                cursor.execute(sql_count, [status])
-                total_count = cursor.fetchone()[0]
-
-                # 3. 🎓 QUERY 2: Obter os clientes da PÁGINA ATUAL (com LIMIT/OFFSET)
-                sql_query = """
-                    SELECT id_hospede, nome_hospede, email_hospede, telefone, 
-                           pais_origem, cpf, passaporte 
-                    FROM hospede 
-                    WHERE ativo = %s
-                    ORDER BY nome_hospede
-                    LIMIT %s OFFSET %s; 
-                """
-                cursor.execute(sql_query, [status, limit, offset])
+                cursor.execute(sql_query, [status])
                 clientes = dictfetchall(cursor)
-                
-            # 4. 🎓 Resposta padronizada com os dados E o total
-            response_data = {
-                "hospedes": clientes,
-                "total_count": total_count
-            }
-            return success_response(response_data)
-        
+            return success_response(clientes)
         except Exception as e:
             return error_response(str(e), 'SERVER_ERROR', 500)
 

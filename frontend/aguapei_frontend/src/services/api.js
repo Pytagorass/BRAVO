@@ -162,7 +162,4 @@ export const deleteQuarto = (quartoId) => {
     return apiClient.delete(`/quartos/${quartoId}/`);
 };
 
-// =======================================================================
-// 5. EXPORTAÇÃO PADRÃO (DEFAULT)
-// =======================================================================
 export default apiClient;
