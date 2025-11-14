@@ -1,6 +1,6 @@
 // src/pages/ClientesPage.js
-import React, { useState, useEffect, useCallback } from 'react';
-import { Spinner, Alert, Button, ButtonGroup } from 'react-bootstrap';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Spinner, Alert, Button, ButtonGroup, Form, Pagination, InputGroup } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 
 import { fetchHospedes, deleteHospede, updateHospedeStatus } from '../services/api';
@@ -10,6 +10,9 @@ import './ClientesPage.css';
 
 const ClientesPage = () => {
   const [clientes, setClientes] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const [viewStatus, setViewStatus] = useState('Ativo');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -28,6 +31,7 @@ const ClientesPage = () => {
       setError(null);
       const data = await fetchHospedes(viewStatus);
       setClientes(data);
+      setCurrentPage(1);
     } catch (err) {
       setError(err.message || 'Falha ao carregar a lista de clientes.');
     } finally {
@@ -38,6 +42,10 @@ const ClientesPage = () => {
   useEffect(() => {
     carregarClientes();
   }, [carregarClientes]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, viewStatus]);
 
   // 🧩 Ações de modal
   const handleShowNovoCliente = () => {
@@ -109,6 +117,35 @@ const ClientesPage = () => {
     }
   };
 
+  const clientesFiltrados = useMemo(() => {
+    const termo = searchTerm.trim().toLowerCase();
+    if (!termo) return clientes;
+    return clientes.filter((cliente) => {
+      const nome = (cliente.nome_hospede || '').toLowerCase();
+      const pais = (cliente.pais_origem || '').toLowerCase();
+      return nome.includes(termo) || pais.includes(termo);
+    });
+  }, [clientes, searchTerm]);
+
+  const totalPages = Math.max(1, Math.ceil(clientesFiltrados.length / ITEMS_PER_PAGE));
+  const paginaAtual = Math.min(currentPage, totalPages);
+  const inicio = (paginaAtual - 1) * ITEMS_PER_PAGE;
+  const clientesPagina = clientesFiltrados.slice(inicio, inicio + ITEMS_PER_PAGE);
+
+  const handleSearchChange = (event) => {
+    setSearchTerm(event.target.value);
+  };
+
+  const handleClearSearch = () => {
+    setSearchTerm('');
+  };
+
+  const handlePageChange = (novaPagina) => {
+    if (novaPagina >= 1 && novaPagina <= totalPages) {
+      setCurrentPage(novaPagina);
+    }
+  };
+
   // 📋 Conteúdo da tabela
   const renderContent = () => {
     if (loading && clientes.length === 0) {
@@ -128,11 +165,11 @@ const ClientesPage = () => {
       );
     }
 
-    if (clientes.length === 0 && !loading) {
+    if (!clientesFiltrados.length) {
       return (
-        <div className="text-center p-5">
-          Nenhum cliente {viewStatus.toLowerCase()} encontrado.
-        </div>
+        <Alert variant="info" className="text-center">
+          Nenhum cliente {viewStatus.toLowerCase()} encontrado para o filtro aplicado.
+        </Alert>
       );
     }
 
@@ -149,7 +186,7 @@ const ClientesPage = () => {
             </tr>
           </thead>
           <tbody>
-            {clientes.map((cliente) => (
+            {clientesPagina.map((cliente) => (
               <tr key={cliente.id_hospede}>
                 <td>{cliente.nome_hospede}</td>
                 <td>
@@ -198,15 +235,35 @@ const ClientesPage = () => {
             ))}
           </tbody>
         </table>
+        <div className="d-flex justify-content-between align-items-center flex-wrap mt-3">
+          <small className="text-muted">
+            Mostrando {clientesPagina.length ? inicio + 1 : 0}-
+            {Math.min(inicio + clientesPagina.length, clientesFiltrados.length)} de {clientesFiltrados.length}
+          </small>
+          <Pagination className="mb-0">
+            <Pagination.Prev
+              disabled={paginaAtual === 1}
+              onClick={() => handlePageChange(paginaAtual - 1)}
+            />
+            <Pagination.Item active>
+              Página {paginaAtual} de {totalPages}
+            </Pagination.Item>
+            <Pagination.Next
+              disabled={paginaAtual === totalPages}
+              onClick={() => handlePageChange(paginaAtual + 1)}
+            />
+          </Pagination>
+        </div>
       </div>
     );
   };
+
 
   return (
     <div className="clientes-page">
       <div className="page-header">
         <h1>Gerenciamento de Clientes</h1>
-        <div>
+        <div className="d-flex flex-wrap align-items-center justify-content-between gap-2">
           <ButtonGroup className="me-2">
             <Button
               variant={viewStatus === 'Ativo' ? 'success' : 'outline-secondary'}
@@ -235,6 +292,22 @@ const ClientesPage = () => {
           >
             + Novo Cliente
           </Button>
+
+          <InputGroup style={{ minWidth: '260px' }}>
+            <Form.Control
+              type="text"
+              placeholder="Buscar por nome ou país"
+              value={searchTerm}
+              onChange={handleSearchChange}
+            />
+            <Button
+              variant="outline-secondary"
+              onClick={handleClearSearch}
+              disabled={!searchTerm}
+            >
+              Limpar
+            </Button>
+          </InputGroup>
         </div>
       </div>
 
