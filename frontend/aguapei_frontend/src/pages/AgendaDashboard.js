@@ -9,7 +9,6 @@ import 'moment/locale/pt-br';
 import LegendaGantt from '../components/LegendaGantt';
 import { HelpCircle } from 'react-feather';
 
-
 moment.locale('pt-br');
 
 const AgendaDashboard = () => {
@@ -111,6 +110,8 @@ const AgendaDashboard = () => {
         setReservaParaEditar(null);
         setSelectedReservaId(null);
     };
+
+
 
     const renderContent = () => {
         if (loading) {

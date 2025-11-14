@@ -1,5 +1,5 @@
 import React from 'react';
-import Timeline from 'react-calendar-timeline';
+import Timeline, { TimelineMarkers, TodayMarker } from 'react-calendar-timeline';
 import moment from 'moment';
 import 'moment/locale/pt-br';
 import 'react-calendar-timeline/style.css';
@@ -105,7 +105,7 @@ function GanttChart({
   visibleTimeEnd,
   onTimeChange,
   onItemClick,
-}) {
+  }) {
   const { groups, items } = processDataForTimeline(quartosData, reservasData);
 
   return (
@@ -127,14 +127,28 @@ function GanttChart({
         defaultTimeEnd={moment().endOf('month')}
         sidebarWidth={200}
         lineHeight={60}
-        itemHeightRatio={0.85}  // 🔧 ligeiro aumento melhora centragem visual
-        canMove
-        canResize
+        itemHeightRatio={0.85}
+        canMove={false}
+        canResize={false}
         stackItems
         canOverlap={false}
         onItemClick={onItemClick}
         itemRenderer={itemRenderer}
-      />
+      >
+        <TimelineMarkers>
+          <TodayMarker>
+            {({ styles }) => (
+              <div
+                style={{
+                  ...styles,
+                  backgroundColor: 'rgba(220, 53, 69, 0.7)',
+                  width: '3px',
+                }}
+              />
+            )}
+          </TodayMarker>
+        </TimelineMarkers>
+      </Timeline>
     </div>
   );
 }

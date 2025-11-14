@@ -339,11 +339,12 @@
 
 
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Spinner, Alert } from 'react-bootstrap';
-import { fetchReservaDetalhes, updateReservaStatus } from '../services/api';
+import { Modal, Button, Spinner, Alert, Form } from 'react-bootstrap';
+import { fetchReservaDetalhes, updateReservaStatus, updateReservaCompleta } from '../services/api';
 import { toast } from 'react-toastify';
 import ConfirmacaoModal from './ConfirmacaoModal';
 import './ReservaDetalhesModal.css';
+import moment from 'moment';
 
 const formatCurrency = (value) => {
     const val = parseFloat(value);
@@ -368,6 +369,9 @@ function ReservaDetalhesModal({ show, handleClose, reservaId, onUpdateSuccess, o
     const [isUpdating, setIsUpdating] = useState(false);
     const [updateError, setUpdateError] = useState(null);
     const [showConfirmCancel, setShowConfirmCancel] = useState(false);
+    const [showAdjustDates, setShowAdjustDates] = useState(false);
+    const [novoCheckin, setNovoCheckin] = useState('');
+    const [novoCheckout, setNovoCheckout] = useState('');
 
     useEffect(() => {
         if (show && reservaId) {
@@ -398,8 +402,18 @@ function ReservaDetalhesModal({ show, handleClose, reservaId, onUpdateSuccess, o
             setLoading(false);
             setIsUpdating(false);
             setShowConfirmCancel(false);
+            setShowAdjustDates(false);
+            setNovoCheckin('');
+            setNovoCheckout('');
         }
     }, [show]);
+
+    useEffect(() => {
+        if (reserva) {
+            setNovoCheckin(reserva.checkin ? moment(reserva.checkin).format('YYYY-MM-DD') : '');
+            setNovoCheckout(reserva.checkout ? moment(reserva.checkout).format('YYYY-MM-DD') : '');
+        }
+    }, [reserva]);
 
     const handleUpdatePagamento = async (newStatus) => {
         if (!reserva) return;
@@ -448,6 +462,49 @@ function ReservaDetalhesModal({ show, handleClose, reservaId, onUpdateSuccess, o
         handleClose();
     };
 
+    const handleSubmitAjusteDatas = async (event) => {
+        event.preventDefault();
+        if (!reserva) return;
+
+        const diffDias = moment(novoCheckout).diff(moment(novoCheckin), 'days');
+        if (diffDias <= 0) {
+            setUpdateError('Checkout deve ser posterior ao check-in.');
+            return;
+        }
+
+        setIsUpdating(true);
+        setUpdateError(null);
+
+        const diasOriginais = Math.max(1, moment(reserva.checkout).diff(moment(reserva.checkin), 'days'));
+        const valorDiaria =
+            diasOriginais > 0 ? Number(reserva.valor_total || 0) / diasOriginais : Number(reserva.valor_total || 0);
+
+        const payload = {
+            fk_hospede_id_hospede: reserva.id_titular,
+            quartos: [reserva.id_quarto],
+            checkin: novoCheckin,
+            checkout: novoCheckout,
+            valor_total: Number((valorDiaria * diffDias).toFixed(2)),
+            status_pagamento: reserva.status_pagamento || 'Pendente',
+            observacao_reserva: reserva.observacao_reserva || '',
+            acompanhantes: (reserva.acompanhantes || []).map((a) => a.id_hospede),
+        };
+
+        try {
+            const responseData = await updateReservaCompleta(reserva.id_reserva_quarto, payload);
+            setReserva(responseData);
+            toast.success('Datas atualizadas com sucesso!');
+            if (onUpdateSuccess) onUpdateSuccess(responseData);
+            setShowAdjustDates(false);
+        } catch (err) {
+            const errorMsg = err.message || 'Falha ao ajustar as datas.';
+            setUpdateError(errorMsg);
+            toast.error(errorMsg);
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
     const titularNome = reserva?.nome_titular || 'Hóspede';
     const quartoInfo = `${reserva?.numero_quarto || 'N/A'} (${reserva?.tipo_quarto || 'N/A'})`;
     const usuarioNome = reserva?.nome_usuario_criacao || 'Sistema';
@@ -475,9 +532,58 @@ function ReservaDetalhesModal({ show, handleClose, reservaId, onUpdateSuccess, o
                             <h4 className="fw-bold" style={{ color: '#26522c' }}>
                                 {quartoInfo} - {titularNome}
                             </h4>
-                            <p className="text-muted mb-4">
-                                Período: {formatDate(reserva.checkin)} a {formatDate(reserva.checkout)}
-                            </p>
+                            <div className="text-muted mb-3 d-flex align-items-center flex-wrap gap-3">
+                                <span>
+                                    Período: {formatDate(reserva.checkin)} a {formatDate(reserva.checkout)}
+                                </span>
+                                {reserva.status_reserva !== 'Cancelada' && (
+                                    <Button
+                                        variant={showAdjustDates ? 'outline-secondary' : 'outline-primary'}
+                                        size="sm"
+                                        onClick={() => setShowAdjustDates((prev) => !prev)}
+                                        disabled={isUpdating}
+                                    >
+                                        {showAdjustDates ? 'Fechar ajuste' : 'Ajustar datas'}
+                                    </Button>
+                                )}
+                            </div>
+                            {showAdjustDates && (
+                                <Form onSubmit={handleSubmitAjusteDatas} className="bg-light rounded p-3 mb-3">
+                                    <div className="row g-3">
+                                        <div className="col-md-6">
+                                            <Form.Label>Check-in</Form.Label>
+                                            <Form.Control
+                                                type="date"
+                                                value={novoCheckin}
+                                                onChange={(e) => setNovoCheckin(e.target.value)}
+                                                required
+                                            />
+                                        </div>
+                                        <div className="col-md-6">
+                                            <Form.Label>Check-out</Form.Label>
+                                            <Form.Control
+                                                type="date"
+                                                value={novoCheckout}
+                                                onChange={(e) => setNovoCheckout(e.target.value)}
+                                                required
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="d-flex gap-2 mt-3">
+                                        <Button type="submit" variant="primary" disabled={isUpdating}>
+                                            {isUpdating ? <Spinner as="span" animation="border" size="sm" /> : 'Aplicar'}
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="outline-secondary"
+                                            onClick={() => setShowAdjustDates(false)}
+                                            disabled={isUpdating}
+                                        >
+                                            Cancelar
+                                        </Button>
+                                    </div>
+                                </Form>
+                            )}
                             <div className="detalhes-container">
                                 <div className="detalhes-coluna">
                                     <h5>Hóspedes</h5>
