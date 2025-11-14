@@ -56,6 +56,41 @@
   width: 100%;
 }
 
+.dashboard-cta {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.status-list,
+.paises-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.status-list li,
+.paises-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid #f1f3f5;
+  font-size: 0.95rem;
+}
+
+.status-list li:last-child,
+.paises-list li:last-child {
+  border-bottom: none;
+}
+
+.kpi-subtext {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+}
+
 @media (max-width: 992px) {
   /* Tablets */
   .chart-container {

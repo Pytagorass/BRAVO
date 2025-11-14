@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { fetchIndicadoresGestao } from '../services/api';
-import { Row, Col, Spinner, Alert, Button, Form, Card } from 'react-bootstrap';
+import { useNavigate } from 'react-router-dom';
+import { fetchIndicadoresGestao, fetchReservasPendentesGestao } from '../services/api';
+import { Row, Col, Spinner, Alert, Button, Form, Card, Badge, Modal, Table } from 'react-bootstrap';
 import './GestaoPage.css';
 
 import { Bar, Doughnut } from 'react-chartjs-2';
@@ -10,12 +11,24 @@ import {
   LinearScale,
   BarElement,
   ArcElement,
+  PointElement,
+  LineElement,
   Title,
   Tooltip,
   Legend,
 } from 'chart.js';
 
-Chart.register(CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend);
+Chart.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  ArcElement,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 const formatCurrency = (value) => {
   const numberValue = parseFloat(value) || 0;
@@ -23,6 +36,32 @@ const formatCurrency = (value) => {
     style: 'currency',
     currency: 'BRL',
   }).format(numberValue);
+};
+
+const formatNumber = (value) =>
+  new Intl.NumberFormat('pt-BR').format(Number.isFinite(Number(value)) ? Number(value) : 0);
+
+const formatDecimal = (value, digits = 2) => (Number(value) || 0).toFixed(digits);
+
+const STATUS_BADGE_VARIANT = {
+  Agendada: 'warning',
+  Ativa: 'success',
+  Concluída: 'secondary',
+  Cancelada: 'danger',
+};
+
+const PAGAMENTO_BADGE_VARIANT = {
+  Pendente: 'warning',
+  'Em Partes': 'info',
+  Pago: 'success',
+  Cancelado: 'secondary',
+};
+
+const formatDate = (value) => {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 };
 
 const formatChartLabel = (mes_ano) => {
@@ -38,10 +77,15 @@ const formatChartLabel = (mes_ano) => {
 };
 
 const GestaoPage = () => {
+  const navigate = useNavigate();
   const [indicadores, setIndicadores] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [anoSelecionado, setAnoSelecionado] = useState(new Date().getFullYear());
+  const [showPendentesModal, setShowPendentesModal] = useState(false);
+  const [loadingPendentes, setLoadingPendentes] = useState(false);
+  const [reservasPendentesLista, setReservasPendentesLista] = useState([]);
+  const [erroPendentes, setErroPendentes] = useState(null);
   const anosDisponiveis = [0, 1, 2, 3].map((i) => new Date().getFullYear() - i);
 
   useEffect(() => {
@@ -52,13 +96,37 @@ const GestaoPage = () => {
         const data = await fetchIndicadoresGestao(anoSelecionado);
         setIndicadores(data);
       } catch (err) {
-        setError(err.message || 'Falha ao carregar os indicadores de gestão.');
+        setError(err.message || 'Falha ao carregar os indicadores de gestÃ£o.');
       } finally {
         setLoading(false);
       }
     };
     carregarIndicadores();
   }, [anoSelecionado]);
+
+  const carregarReservasPendentes = async () => {
+    try {
+      setErroPendentes(null);
+      setLoadingPendentes(true);
+      const data = await fetchReservasPendentesGestao();
+      setReservasPendentesLista(data?.reservas || []);
+    } catch (err) {
+      setErroPendentes(err?.error?.message || err.message || 'Falha ao carregar reservas pendentes.');
+    } finally {
+      setLoadingPendentes(false);
+    }
+  };
+
+  const handleAbrirPendentesModal = () => {
+    setShowPendentesModal(true);
+    carregarReservasPendentes();
+  };
+
+  const handleFecharPendentesModal = () => {
+    setShowPendentesModal(false);
+    setReservasPendentesLista([]);
+    setErroPendentes(null);
+  };
 
   const renderContent = () => {
     if (loading)
@@ -82,10 +150,29 @@ const GestaoPage = () => {
 
     if (!indicadores) return <Alert variant="warning">Nenhum dado encontrado.</Alert>;
 
-    const { kpis, taxa_ocupacao, faturamento_mensal, faturamento_por_tipo } = indicadores;
-
+    const {
+      kpis,
+      taxa_ocupacao,
+      faturamento_mensal,
+      faturamento_por_tipo,
+      reservas_por_status = [],
+      pagamentos_pendentes = {},
+      diarias_por_pais = [],
+      lead_time_medio = 0,
+      ano_filtrado,
+    } = indicadores;
+    const pagamentosValor = Number(pagamentos_pendentes?.valor_pendente || 0);
+    const reservasPendentes = Number(pagamentos_pendentes?.reservas_em_aberto || 0);
+    const leadTimeFormatado = formatDecimal(lead_time_medio, 1);
+    const diasVendidosFmt = formatNumber(taxa_ocupacao?.total_dias_vendidos || 0);
+    const diasBaseFmt = formatNumber(taxa_ocupacao?.total_dias_base || 0);
     const barChartLabels = faturamento_mensal.map((item) => formatChartLabel(item.mes_ano));
-    const barChartDataPoints = faturamento_mensal.map((item) => item.faturamento_mensal);
+    const barChartDataPoints = faturamento_mensal.map(
+      (item) => parseFloat(item.faturamento_mensal) || 0
+    );
+    const ocupacaoMensal = faturamento_mensal.map(
+      (item) => parseFloat(item.taxa_ocupacao_percent) || 0
+    );
     const barChartData = {
       labels: barChartLabels,
       datasets: [
@@ -95,6 +182,16 @@ const GestaoPage = () => {
           backgroundColor: 'rgba(38, 82, 44, 0.6)',
           borderColor: 'rgba(38, 82, 44, 1)',
           borderWidth: 1,
+        },
+        {
+          type: 'line',
+          label: 'Ocupação (%)',
+          data: ocupacaoMensal,
+          borderColor: '#F59F00',
+          backgroundColor: 'rgba(245, 159, 0, 0.25)',
+          fill: false,
+          tension: 0.35,
+          yAxisID: 'y1',
         },
       ],
     };
@@ -107,8 +204,14 @@ const GestaoPage = () => {
         title: { display: true, text: 'Faturamento Mensal (Últimos 12 Meses)' },
         tooltip: {
           callbacks: {
-            label: (context) =>
-              `${context.dataset.label || ''}: ${formatCurrency(context.parsed.y)}`,
+            label: (context) => {
+              const parsedValue =
+                typeof context.parsed?.y !== 'undefined' ? context.parsed.y : context.parsed;
+              if (context.dataset?.yAxisID === 'y1') {
+                return `${context.dataset.label}: ${formatDecimal(parsedValue)}%`;
+              }
+              return `${context.dataset.label || ''}: ${formatCurrency(parsedValue)}`;
+            },
           },
         },
       },
@@ -116,8 +219,17 @@ const GestaoPage = () => {
         y: {
           beginAtZero: true,
           ticks: {
-            callback: (value) => 'R$ ' + value / 1000 + 'k',
+            callback: (value) => formatCurrency(value),
           },
+        },
+        y1: {
+          beginAtZero: true,
+          position: 'right',
+          grid: { drawOnChartArea: false },
+          ticks: {
+            callback: (value) => `${formatDecimal(value)}%`,
+          },
+          suggestedMax: 100,
         },
       },
     };
@@ -148,7 +260,7 @@ const GestaoPage = () => {
         legend: { position: 'top' },
         title: {
           display: true,
-          text: `Faturamento por Tipo de Quarto (${indicadores.ano_filtrado})`,
+          text: `Faturamento por Tipo de Quarto (${ano_filtrado})`,
         },
         tooltip: {
           callbacks: {
@@ -161,12 +273,13 @@ const GestaoPage = () => {
 
     return (
       <>
+
         <Row className="mb-4">
-          <Col md={4} className="mb-3 mb-md-0">
+          <Col lg={3} md={6} className="mb-3">
             <Card className="kpi-card">
               <Card.Body>
                 <Card.Title className="kpi-card-title">
-                  Faturamento Total ({indicadores.ano_filtrado})
+                  Faturamento Total ({ano_filtrado})
                 </Card.Title>
                 <Card.Text className="kpi-card-value">
                   {formatCurrency(kpis.faturamento_total)}
@@ -175,35 +288,115 @@ const GestaoPage = () => {
             </Card>
           </Col>
 
-          <Col md={4} className="mb-3 mb-md-0">
+          <Col lg={3} md={6} className="mb-3">
             <Card className="kpi-card">
               <Card.Body>
                 <Card.Title className="kpi-card-title">
-                  Total de Reservas ({indicadores.ano_filtrado})
+                  Total de Reservas ({ano_filtrado})
                 </Card.Title>
                 <Card.Text className="kpi-card-value">{kpis.total_reservas}</Card.Text>
               </Card.Body>
             </Card>
           </Col>
 
-          <Col md={4}>
+          <Col lg={3} md={6} className="mb-3">
             <Card className="kpi-card">
               <Card.Body>
                 <Card.Title className="kpi-card-title">
-                  Taxa de Ocupação ({indicadores.ano_filtrado})
+                  Taxa de Ocupação ({ano_filtrado})
                 </Card.Title>
                 <Card.Text className="kpi-card-value">
-                  {parseFloat(taxa_ocupacao.taxa_ocupacao_percent).toFixed(2)}%
+                  {formatDecimal(taxa_ocupacao.taxa_ocupacao_percent)}%
                 </Card.Text>
-                <small className="text-muted">
-                  {taxa_ocupacao.total_dias_vendidos} dias vendidos de{' '}
-                  {taxa_ocupacao.total_dias_base} disponíveis
+                <small className="kpi-subtext text-muted">
+                  {diasVendidosFmt} dias vendidos de {diasBaseFmt} disponi­veis
                 </small>
+              </Card.Body>
+            </Card>
+          </Col>
+
+          <Col lg={3} md={6} className="mb-3">
+            <Card className="kpi-card">
+              <Card.Body>
+                <Card.Title className="kpi-card-title">Pagamentos Pendentes</Card.Title>
+                <Card.Text className="kpi-card-value">
+                  {formatCurrency(pagamentosValor)}
+                </Card.Text>
+                <small className="kpi-subtext text-muted">
+                  {reservasPendentes} reservas com cobrança aberta
+                </small>
+                <Button
+                  variant="outline-danger"
+                  size="sm"
+                  className="mt-2"
+                  onClick={handleAbrirPendentesModal}
+                  disabled={loadingPendentes}
+                >
+                  Ver reservas em atraso
+                </Button>
               </Card.Body>
             </Card>
           </Col>
         </Row>
 
+
+        <Row className="mb-4">
+          <Col md={4} className="mb-3">
+            <Card className="kpi-card h-100">
+              <Card.Body>
+                <Card.Title className="kpi-card-title">Tempo Médio de Antecedência</Card.Title>
+                <Card.Text className="kpi-card-value">{leadTimeFormatado} dias</Card.Text>
+                <small className="kpi-subtext text-muted">
+                  Diferença média entre a criação e o check-in
+                </small>
+              </Card.Body>
+            </Card>
+          </Col>
+
+          <Col md={4} className="mb-3">
+            <Card className="kpi-card h-100">
+              <Card.Body>
+                <Card.Title className="kpi-card-title">Reservas por Status</Card.Title>
+                {reservas_por_status.length ? (
+                  <ul className="status-list">
+                    {reservas_por_status.map((item) => (
+                      <li key={item.status_reserva}>
+                        <span>{item.status_reserva}</span>
+                        <Badge bg={STATUS_BADGE_VARIANT[item.status_reserva] || 'secondary'}>
+                          {item.total}
+                        </Badge>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-muted mb-0">Sem reservas registradas no perí­odo.</p>
+                )}
+              </Card.Body>
+            </Card>
+          </Col>
+
+          <Col md={4} className="mb-3">
+            <Card className="kpi-card h-100">
+              <Card.Body>
+                <Card.Title className="kpi-card-title">Top Paí­ses (Diárias)</Card.Title>
+                {diarias_por_pais.length ? (
+                  <ul className="paises-list">
+                    {diarias_por_pais.map((pais) => (
+                      <li key={pais.pais || 'Sem PaÃ­s'}>
+                        <span>{pais.pais || 'NÃ£o informado'}</span>
+                        <span className="fw-semibold">
+                          {formatNumber(pais.total_diarias)} diÃ¡rias
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-muted mb-0">Sem hospedagens por paÃ­s para o perÃ­odo.</p>
+                )}
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
         <Row>
           <Col md={8} className="mb-3 mb-md-0">
             <Card className="financial-panel">
@@ -233,6 +426,77 @@ const GestaoPage = () => {
             </Card>
           </Col>
         </Row>
+
+        <Modal show={showPendentesModal} onHide={handleFecharPendentesModal} size="lg" centered>
+          <Modal.Header closeButton>
+            <Modal.Title>Reservas com pagamento pendente</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            {loadingPendentes ? (
+              <div className="text-center my-4">
+                <Spinner animation="border" variant="danger" />
+                <p className="mt-2">Carregando reservas em atraso...</p>
+              </div>
+            ) : erroPendentes ? (
+              <Alert variant="danger">{erroPendentes}</Alert>
+            ) : reservasPendentesLista.length === 0 ? (
+              <p className="mb-0">Nenhuma reserva pendente encontrada neste momento.</p>
+            ) : (
+              <Table responsive striped hover size="sm">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Titular</th>
+                    <th>Quarto</th>
+                    <th>Check-in</th>
+                    <th>Check-out</th>
+                    <th>Reserva</th>
+                    <th>Pagamento</th>
+                    <th>Dias desde check-in</th>
+                    <th>Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reservasPendentesLista.map((reserva) => (
+                    <tr key={reserva.id_reserva_quarto}>
+                      <td>#{reserva.id_reserva}</td>
+                      <td>
+                        <div className="fw-semibold">{reserva.titular || '--'}</div>
+                        <div className="text-muted small">{reserva.email_hospede || ''}</div>
+                      </td>
+                      <td>
+                        {reserva.numero_quarto || '--'}{' '}
+                        <span className="text-muted small">{reserva.tipo_quarto || ''}</span>
+                      </td>
+                      <td>{formatDate(reserva.checkin)}</td>
+                      <td>{formatDate(reserva.checkout)}</td>
+                      <td>
+                        <Badge bg={STATUS_BADGE_VARIANT[reserva.status_reserva] || 'secondary'}>
+                          {reserva.status_reserva}
+                        </Badge>
+                      </td>
+                      <td>
+                        <Badge bg={PAGAMENTO_BADGE_VARIANT[reserva.status_pagamento] || 'secondary'}>
+                          {reserva.status_pagamento}
+                        </Badge>
+                      </td>
+                      <td>{formatNumber(reserva.dias_desde_checkin)}</td>
+                      <td>{formatCurrency(reserva.valor_total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={handleFecharPendentesModal}>
+              Fechar
+            </Button>
+            <Button variant="danger" onClick={() => navigate('/agenda?status_pagamento=Pendente')}>
+              Ir para Agenda
+            </Button>
+          </Modal.Footer>
+        </Modal>
       </>
     );
   };
@@ -240,7 +504,7 @@ const GestaoPage = () => {
   return (
     <div className="gestao-page">
       <div className="page-header">
-        <h1>Gestão Aguapeí - Relatórios e Indicadores</h1>
+        <h1>GestÃ£o AguapeÃ­ - RelatÃ³rios e Indicadores</h1>
         <div style={{ width: '200px' }}>
           <Form.Select
             value={anoSelecionado}
@@ -262,3 +526,5 @@ const GestaoPage = () => {
 };
 
 export default GestaoPage;
+
+

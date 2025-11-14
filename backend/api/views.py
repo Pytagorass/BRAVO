@@ -1,28 +1,28 @@
-# =======================================================================
-# 1. IMPORTAÇÕES
+﻿# =======================================================================
+# 1. IMPORTAES
 # =======================================================================
 import json
 import jwt
 import datetime
-import bcrypt # 🎓 IMPORTADO PARA HASHING DE SENHA
+import bcrypt #  IMPORTADO PARA HASHING DE SENHA
 from functools import wraps
 
-# Importações do Django
+# ImportaÃ§Ãµes do Django
 from django.db import connection, IntegrityError, transaction
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
-from django.views.decorators.http import require_http_methods # 🎓 Boa prática
+from django.views.decorators.http import require_http_methods #  Boa prÃ¡tica
 
-# --- Importa nosso decorador de autenticação ---
+# --- Importa nosso decorador de autenticaÃ§Ã£o ---
 from .auth_decorator import token_required
 
 # =======================================================================
-# 2. FUNÇÕES UTILITÁRIAS (Helpers)
+# 2. FUNES UTILITRIAS (Helpers)
 # =======================================================================
 def dictfetchall(cursor):
     """
-    Converte o resultado de cursor.fetchall() em uma lista de dicionários.
+    Converte o resultado de cursor.fetchall() em uma lista de dicionÃ¡rios.
     """
     columns = [col[0] for col in cursor.description]
     return [
@@ -30,9 +30,9 @@ def dictfetchall(cursor):
         for row in cursor.fetchall()
     ]
 
-# 🎓 =======================================================================
-# 🎓 2B. HELPERS DE RESPOSTA PADRONIZADA (Sua Solicitação)
-# 🎓 =======================================================================
+#  =======================================================================
+#  2B. HELPERS DE RESPOSTA PADRONIZADA (Sua SolicitaÃ§Ã£o)
+#  =======================================================================
 def success_response(data=None, code="OK", status_code=200):
     """
     Gera uma resposta JSON padronizada para SUCESSO seguindo o contrato oficial.
@@ -67,16 +67,16 @@ def error_response(message, code="ERRO_INTERNO", status_code=400, details=None):
 # =======================================================================
 
 # -----------------------------------------------------------------
-# VIEW DE LOGIN (NÃO protegida)
+# VIEW DE LOGIN (NO protegida)
 # -----------------------------------------------------------------
 @csrf_exempt
-@require_http_methods(["POST"]) # 🎓 Garante que só aceita POST
+@require_http_methods(["POST"]) #  Garante que sÃ³ aceita POST
 def login_view(request):
     """
     Endpoint de login.
-    🎓 REATORADO:
-    1. Usa bcrypt.checkpw() para comparar senhas (Segurança).
-    2. Usa os helpers error_response/success_response (Padronização).
+     REATORADO:
+    1. Usa bcrypt.checkpw() para comparar senhas (SeguranÃ§a).
+    2. Usa os helpers error_response/success_response (PadronizaÃ§Ã£o).
     """
     try:
         data = json.loads(request.body)
@@ -84,7 +84,7 @@ def login_view(request):
         senha_recebida = data.get('senha')
 
         if not email or not senha_recebida:
-            return error_response('Email e senha são obrigatórios', 'VALIDATION_ERROR', 400)
+            return error_response('Email e senha sÃ£o obrigatÃ³rios', 'VALIDATION_ERROR', 400)
 
         sql_query = """
             SELECT id_usuario, nome_usuario, email_usuario, tipo_usuario, senha 
@@ -97,16 +97,16 @@ def login_view(request):
             user_data = dictfetchall(cursor)
 
             if not user_data:
-                return error_response('Credenciais inválidas ou usuário inativo', 'AUTH_FAILED', 401)
+                return error_response('Credenciais invÃ¡lidas ou usuÃ¡rio inativo', 'AUTH_FAILED', 401)
 
             usuario = user_data[0]
             senha_hash_bd = usuario['senha'].encode('utf-8')
             
-            # 🎓 VULNERABILIDADE CORRIGIDA: Comparação de hash
+            #  VULNERABILIDADE CORRIGIDA: ComparaÃ§Ã£o de hash
             if not bcrypt.checkpw(senha_recebida.encode('utf-8'), senha_hash_bd):
-                return error_response('Credenciais inválidas', 'AUTH_FAILED', 401)
+                return error_response('Credenciais invÃ¡lidas', 'AUTH_FAILED', 401)
 
-            # Geração do Payload e Token
+            # GeraÃ§Ã£o do Payload e Token
             payload = {
                 'id_usuario': usuario['id_usuario'],
                 'email': usuario['email_usuario'],
@@ -117,7 +117,7 @@ def login_view(request):
             }
             token = jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
 
-            # 🎓 RESPOSTA PADRONIZADA
+            #  RESPOSTA PADRONIZADA
             response_data = {
                 'token': token,
                 'usuario': {
@@ -135,15 +135,15 @@ def login_view(request):
 # -----------------------------------------------------------------
 # VIEW DA AGENDA (Gantt) (Protegida)
 # -----------------------------------------------------------------
-@csrf_exempt # 🎓 @csrf_exempt não é necessário com @token_required se o token vai no Header
+@csrf_exempt #  @csrf_exempt nÃ£o Ã© necessÃ¡rio com @token_required se o token vai no Header
 @token_required 
 @require_http_methods(["GET"])
 def get_agenda_reservas(request):
     """
-    Endpoint principal para carregar o Gráfico de Gantt.
-    🎓 REATORADO:
-    1. Usa os helpers error_response/success_response (Padronização).
-    2. Filtra reservas 'Cancelada' (boa prática para o Gantt).
+    Endpoint principal para carregar o GrÃ¡fico de Gantt.
+     REATORADO:
+    1. Usa os helpers error_response/success_response (PadronizaÃ§Ã£o).
+    2. Filtra reservas 'Cancelada' (boa prÃ¡tica para o Gantt).
     """
     
     sql_query = """
@@ -172,7 +172,7 @@ def get_agenda_reservas(request):
             cursor.execute(sql_query)
             reservas = dictfetchall(cursor)
         
-        # 🎓 RESPOSTA PADRONIZADA
+        #  RESPOSTA PADRONIZADA
         return success_response(reservas)
 
     except Exception as e:
@@ -180,11 +180,11 @@ def get_agenda_reservas(request):
     
 
 # -----------------------------------------------------------------
-# VIEW DE CRIAÇÃO DE RESERVA (Protegida)
+# VIEW DE CRIAO DE RESERVA (Protegida)
 # -----------------------------------------------------------------
 @csrf_exempt
 @token_required
-@transaction.atomic  # 🎓 Garante que ou tudo (5 inserts) ou nada acontece
+@transaction.atomic  #  Garante que ou tudo (5 inserts) ou nada acontece
 @require_http_methods(["POST"])
 def reservas_view(request):
     """
@@ -341,7 +341,7 @@ def reservas_view(request):
         return error_response(str(e), 'ERRO_INTERNO', 500)
 
 # -----------------------------------------------------------------
-# VIEW: EDITAR RESERVA (Formulário Completo)
+# VIEW: EDITAR RESERVA (FormulÃ¡rio Completo)
 # -----------------------------------------------------------------
 @csrf_exempt
 @token_required
@@ -349,7 +349,7 @@ def reservas_view(request):
 @require_http_methods(["PUT"])
 def edit_reserva_view(request, reserva_quarto_id):
     """
-    View para 'Editar' a reserva (Formulário completo) com validações de negócio.
+    View para 'Editar' a reserva (FormulÃ¡rio completo) com validaÃ§Ãµes de negÃ³cio.
     """
     try:
         data = json.loads(request.body)
@@ -405,7 +405,7 @@ def edit_reserva_view(request, reserva_quarto_id):
 
             id_reserva_principal, quarto_atual, checkin_atual, checkout_atual, status_reserva_atual = reserva_data
 
-            if status_reserva_atual in ('Ativa', 'Concluída'):
+            if status_reserva_atual in ('Ativa', 'Concluda'):
                 if checkin_atual.strftime("%Y-%m-%d") != checkin or checkout_atual.strftime("%Y-%m-%d") != checkout:
                     return error_response(
                         'Reservas ativas ou concluidas nao podem ter datas alteradas.',
@@ -489,7 +489,7 @@ def edit_reserva_view(request, reserva_quarto_id):
         return error_response(str(e), 'ERRO_INTERNO', 500)
 
 # -----------------------------------------------------------------
-# VIEW: ATUALIZAR STATUS (Ações Rápidas: Cancelar, Pagar, etc.)
+# VIEW: ATUALIZAR STATUS (AÃ§Ãµes RÃ¡pidas: Cancelar, Pagar, etc.)
 # -----------------------------------------------------------------
 @csrf_exempt
 @token_required
@@ -497,12 +497,12 @@ def edit_reserva_view(request, reserva_quarto_id):
 @require_http_methods(["PATCH"])
 def update_reserva_status_view(request, reserva_quarto_id):
     """
-    View para 'Editar' a reserva (ações rápidas).
+    View para 'Editar' a reserva (aÃ§Ãµes rÃ¡pidas).
     Aceita PATCH para /api/agenda/update-status/<id>/
     
-    🎓 REATORADO:
-    1. Adicionado SELECT ... FOR UPDATE (Controle de Concorrência).
-    2. Padronização de todas as respostas (success/error).
+     REATORADO:
+    1. Adicionado SELECT ... FOR UPDATE (Controle de ConcorrÃªncia).
+    2. PadronizaÃ§Ã£o de todas as respostas (success/error).
     """
     try:
         data = json.loads(request.body)
@@ -510,7 +510,7 @@ def update_reserva_status_view(request, reserva_quarto_id):
         novo_status_pagamento = data.get('status_pagamento')
 
         if not novo_status_reserva and not novo_status_pagamento:
-            return error_response('Nenhum status foi enviado para atualização.', 'VALIDATION_ERROR', 400)
+            return error_response('Nenhum status foi enviado para atualizaÃ§Ã£o.', 'VALIDATION_ERROR', 400)
 
         with connection.cursor() as cursor:
             
@@ -518,15 +518,15 @@ def update_reserva_status_view(request, reserva_quarto_id):
             cursor.execute("SELECT fk_reserva FROM reserva_quarto WHERE id_reserva_quarto = %s", [reserva_quarto_id])
             reserva_link = cursor.fetchone()
             if not reserva_link:
-                return error_response('Reserva (link quarto) não encontrada.', 'NOT_FOUND', 404)
+                return error_response('Reserva (link quarto) nÃ£o encontrada.', 'NOT_FOUND', 404)
             
             id_reserva_principal = reserva_link[0]
 
-            # 🎓 CONTROLE DE CONCORRÊNCIA (Sua Solicitação)
+            #  CONTROLE DE CONCORRNCIA (Sua SolicitaÃ§Ã£o)
             # Trava a linha da 'reserva' principal.
             cursor.execute("SELECT 1 FROM reserva WHERE id_reserva = %s FOR UPDATE", [id_reserva_principal])
 
-            # 3. Monta a query de atualização dinamicamente
+            # 3. Monta a query de atualizaÃ§Ã£o dinamicamente
             campos_para_atualizar = []
             params = []
             if novo_status_reserva:
@@ -544,7 +544,7 @@ def update_reserva_status_view(request, reserva_quarto_id):
             # 5. Retorna o objeto ATUALIZADO
             reserva_obj = _get_reserva_detalhes_internal(cursor, reserva_quarto_id)
             if not reserva_obj:
-                 return error_response('Reserva não encontrada após atualização.', 'NOT_FOUND', 404)
+                 return error_response('Reserva nÃ£o encontrada apÃ³s atualizaÃ§Ã£o.', 'NOT_FOUND', 404)
 
         return success_response(reserva_obj, "STATUS_UPDATED")
 
@@ -553,14 +553,14 @@ def update_reserva_status_view(request, reserva_quarto_id):
 
 
 # -----------------------------------------------------------------
-# VIEW DE HÓSPEDES (CRUD)
+# VIEW DE HSPEDES (CRUD)
 # -----------------------------------------------------------------
 @csrf_exempt 
 @token_required
 @require_http_methods(["GET", "POST"])
 def hospedes_view(request):
     
-    # MÉTODO GET (Filtra por status Ativo/Inativo)
+    # MTODO GET (Filtra por status Ativo/Inativo)
     if request.method == 'GET':
         status = request.GET.get('status', 'Ativo')
         if status not in ['Ativo', 'Inativo']:
@@ -581,16 +581,16 @@ def hospedes_view(request):
         except Exception as e:
             return error_response(str(e), 'SERVER_ERROR', 500)
 
-    # MÉTODO POST (Cria novo hóspede)
+    # MTODO POST (Cria novo hÃ³spede)
     elif request.method == 'POST':
         try:
             data = json.loads(request.body)
             
-            # Validações pré-insert
+            # ValidaÃ§Ãµes prÃ©-insert
             if data.get('pais_origem', 'Brasil') == 'Brasil' and not data.get('cpf'):
-                return error_response("CPF é obrigatório para hóspedes do Brasil.", "VALIDATION_ERROR", 400)
+                return error_response("CPF Ã© obrigatÃ³rio para hÃ³spedes do Brasil.", "VALIDATION_ERROR", 400)
             if data.get('pais_origem', 'Brasil') != 'Brasil' and not data.get('passaporte'):
-                return error_response("Passaporte é obrigatório para hóspedes estrangeiros.", "VALIDATION_ERROR", 400)
+                return error_response("Passaporte Ã© obrigatÃ³rio para hÃ³spedes estrangeiros.", "VALIDATION_ERROR", 400)
 
             sql_insert = """
                 INSERT INTO hospede (nome_hospede, email_hospede, telefone, pais_origem, cpf, passaporte)
@@ -615,23 +615,23 @@ def hospedes_view(request):
             return error_response(str(e), 'SERVER_ERROR', 500)
 
 # -----------------------------------------------------------------
-# VIEW DE DETALHE DO HÓSPEDE
+# VIEW DE DETALHE DO HSPEDE
 # -----------------------------------------------------------------
 @csrf_exempt 
 @token_required
 @require_http_methods(["PUT", "DELETE", "PATCH"]) 
 def hospede_detail_view(request, hospede_id):
     
-    # MÉTODO PUT (Atualizar)
+    # MTODO PUT (Atualizar)
     if request.method == 'PUT':
         try:
             data = json.loads(request.body)
             
-            # Validações
+            # ValidaÃ§Ãµes
             if data.get('pais_origem', 'Brasil') == 'Brasil' and not data.get('cpf'):
-                return error_response("CPF é obrigatório para hóspedes do Brasil.", "VALIDATION_ERROR", 400)
+                return error_response("CPF Ã© obrigatÃ³rio para hÃ³spedes do Brasil.", "VALIDATION_ERROR", 400)
             if data.get('pais_origem', 'Brasil') != 'Brasil' and not data.get('passaporte'):
-                return error_response("Passaporte é obrigatório para hóspedes estrangeiros.", "VALIDATION_ERROR", 400)
+                return error_response("Passaporte Ã© obrigatÃ³rio para hÃ³spedes estrangeiros.", "VALIDATION_ERROR", 400)
 
             sql_update = """
                 UPDATE hospede
@@ -650,7 +650,7 @@ def hospede_detail_view(request, hospede_id):
             with connection.cursor() as cursor:
                 cursor.execute(sql_update, params)
                 if cursor.rowcount == 0:
-                    return error_response('Cliente não encontrado.', 'NOT_FOUND', 404)
+                    return error_response('Cliente nÃ£o encontrado.', 'NOT_FOUND', 404)
                 hospede_atualizado = dictfetchall(cursor)[0]
             
             return success_response(hospede_atualizado, "HOSPEDE_UPDATED")
@@ -659,7 +659,7 @@ def hospede_detail_view(request, hospede_id):
         except Exception as e:
             return error_response(str(e), 'SERVER_ERROR', 500)
             
-    # MÉTODO DELETE (Inativar)
+    # MTODO DELETE (Inativar)
     elif request.method == 'DELETE':
         try:
             with connection.cursor() as cursor:
@@ -667,33 +667,33 @@ def hospede_detail_view(request, hospede_id):
                 cursor.execute(sql_inativar, [hospede_id])
                 
                 if cursor.rowcount == 0:
-                    return error_response('Cliente não encontrado com este ID.', 'NOT_FOUND', 404)
+                    return error_response('Cliente nÃ£o encontrado com este ID.', 'NOT_FOUND', 404)
             
             return success_response(None, "HOSPEDE_INACTIVATED", 204) 
             
         except IntegrityError as e:
             return error_response(
-                'Não é possível inativar este hóspede (erro de integridade).',
+                'NÃ£o Ã© possvel inativar este hÃ³spede (erro de integridade).',
                 'FK_CONSTRAINT', 409 
             )
         except Exception as e:
             return error_response(str(e), 'SERVER_ERROR', 500)
     
-    # MÉTODO 'PATCH' (Reativar)
+    # MTODO 'PATCH' (Reativar)
     elif request.method == 'PATCH':
         try:
             data = json.loads(request.body)
             novo_status = data.get('ativo')
 
             if novo_status not in ['Ativo', 'Inativo']:
-                return error_response("Status inválido. Envie 'Ativo' ou 'Inativo'.", "VALIDATION_ERROR", 400)
+                return error_response("Status invÃ¡lido. Envie 'Ativo' ou 'Inativo'.", "VALIDATION_ERROR", 400)
 
             with connection.cursor() as cursor:
                 sql_update = "UPDATE hospede SET ativo = %s WHERE id_hospede = %s"
                 cursor.execute(sql_update, [novo_status, hospede_id])
                 
                 if cursor.rowcount == 0:
-                    return error_response('Cliente não encontrado.', 'NOT_FOUND', 404)
+                    return error_response('Cliente nÃ£o encontrado.', 'NOT_FOUND', 404)
             
             return success_response(None, "STATUS_UPDATED", 200) 
 
@@ -701,28 +701,28 @@ def hospede_detail_view(request, hospede_id):
             return error_response(str(e), 'SERVER_ERROR', 500)
 
 # -----------------------------------------------------------------
-# 🎓 VIEW DE PERFIL DO USUÁRIO
+#  VIEW DE PERFIL DO USURIO
 # -----------------------------------------------------------------
 @csrf_exempt 
 @token_required
 @require_http_methods(["GET", "PUT"])
 def usuario_perfil_view(request):
     """
-    View para o perfil do usuário logado (/api/perfil/).
-    🎓 REATORADO:
-    1. Usa bcrypt.hashpw() para atualizar senha (Segurança).
-    2. Usa os helpers error_response/success_response (Padronização).
+    View para o perfil do usuÃ¡rio logado (/api/perfil/).
+     REATORADO:
+    1. Usa bcrypt.hashpw() para atualizar senha (SeguranÃ§a).
+    2. Usa os helpers error_response/success_response (PadronizaÃ§Ã£o).
     """
     try:
         user_id = request.user_token_payload.get('id_usuario')
         if not user_id:
-            return error_response('Token inválido, ID de usuário não encontrado.', 'INVALID_TOKEN', 401)
+            return error_response('Token invÃ¡lido, ID de usuÃ¡rio nÃ£o encontrado.', 'INVALID_TOKEN', 401)
     except Exception as e:
         return error_response(f'Erro ao processar token: {str(e)}', 'INVALID_TOKEN', 401)
 
     with connection.cursor() as cursor:
         
-        # MÉTODO GET: Buscar dados
+        # MTODO GET: Buscar dados
         if request.method == 'GET':
             try:
                 sql_get = "SELECT id_usuario, nome_usuario, email_usuario FROM usuario WHERE id_usuario = %s"
@@ -730,25 +730,25 @@ def usuario_perfil_view(request):
                 usuario = dictfetchall(cursor)
                 
                 if not usuario:
-                    return error_response('Usuário não encontrado no banco.', 'NOT_FOUND', 404)
+                    return error_response('UsuÃ¡rio nÃ£o encontrado no banco.', 'NOT_FOUND', 404)
                 
                 return success_response(usuario[0])
             
             except Exception as e:
                 return error_response(f'Erro no GET: {str(e)}', 'SERVER_ERROR', 500)
 
-        # MÉTODO PUT: Atualizar o perfil
+        # MTODO PUT: Atualizar o perfil
         elif request.method == 'PUT':
             try:
                 data = json.loads(request.body)
                 nome = data.get('nome_usuario')
                 email = data.get('email_usuario')
-                senha = data.get('senha') # O modal enviará 'senha' se ela for mudada
+                senha = data.get('senha') # O modal enviarÃ¡ 'senha' se ela for mudada
 
                 sql_update_query = "UPDATE usuario SET nome_usuario = %s, email_usuario = %s"
                 params = [nome, email]
 
-                # 🎓 VULNERABILIDADE CORRIGIDA: Hashing da nova senha
+                #  VULNERABILIDADE CORRIGIDA: Hashing da nova senha
                 if senha:
                     hashed_senha = bcrypt.hashpw(senha.encode('utf-8'), bcrypt.gensalt())
                     sql_update_query += ", senha = %s"
@@ -761,32 +761,32 @@ def usuario_perfil_view(request):
                 cursor.execute(sql_update_query, params)
                 
                 if cursor.rowcount == 0:
-                    return error_response('Usuário não encontrado, nada atualizado.', 'NOT_FOUND', 404)
+                    return error_response('UsuÃ¡rio nÃ£o encontrado, nada atualizado.', 'NOT_FOUND', 404)
 
                 return success_response(None, 'PROFILE_UPDATED')
 
             except IntegrityError as e:
-                return error_response('Este e-mail já está em uso por outra conta.', 'CONFLICT', 409)
+                return error_response('Este e-mail jÃ¡ estÃ¡ em uso por outra conta.', 'CONFLICT', 409)
             except Exception as e:
                 return error_response(f'Erro no PUT: {str(e)}', 'SERVER_ERROR', 500)
 
 
 # -----------------------------------------------------------------
-# 🎓 VIEW DE DETALHES DA RESERVA (Refatorada)
+#  VIEW DE DETALHES DA RESERVA (Refatorada)
 # -----------------------------------------------------------------
 @csrf_exempt
 @token_required
 @require_http_methods(["GET"])
 def get_reserva_detalhes(request, reserva_quarto_id):
     """
-    Endpoint para buscar os detalhes de UMA reserva específica.
+    Endpoint para buscar os detalhes de UMA reserva especfica.
     """
     try:
         with connection.cursor() as cursor:
             detalhes = _get_reserva_detalhes_internal(cursor, reserva_quarto_id)
             
             if not detalhes:
-                return error_response('Reserva não encontrada', 'NOT_FOUND', 404)
+                return error_response('Reserva nÃ£o encontrada', 'NOT_FOUND', 404)
             
             return success_response(detalhes)
 
@@ -794,13 +794,13 @@ def get_reserva_detalhes(request, reserva_quarto_id):
         return error_response(str(e), 'SERVER_ERROR', 500)
 
 # -----------------------------------------------------------------
-# 🎓 FUNÇÃO INTERNA (Helper) para buscar detalhes da reserva
-#    (Evita duplicação de código entre PUT, PATCH e GET)
+#  FUNO INTERNA (Helper) para buscar detalhes da reserva
+#    (Evita duplicaÃ§Ã£o de cÃ³digo entre PUT, PATCH e GET)
 # -----------------------------------------------------------------
 def _get_reserva_detalhes_internal(cursor, reserva_quarto_id):
     """
-    Função helper que executa as queries para buscar todos os dados
-    de uma reserva, dado um cursor já aberto.
+    FunÃ§Ã£o helper que executa as queries para buscar todos os dados
+    de uma reserva, dado um cursor jÃ¡ aberto.
     """
     detalhes = {}
     
@@ -829,7 +829,7 @@ def _get_reserva_detalhes_internal(cursor, reserva_quarto_id):
     detalhes_result = dictfetchall(cursor)
     
     if not detalhes_result:
-        return None # Retorna None se não achar
+        return None # Retorna None se nÃ£o achar
     
     detalhes = detalhes_result[0]
     fk_reserva_principal = detalhes['id_reserva']
@@ -860,16 +860,16 @@ def _get_reserva_detalhes_internal(cursor, reserva_quarto_id):
 @require_http_methods(["GET", "POST"])
 def quartos_view(request):
     
-    # MÉTODO GET
+    # MTODO GET
     if request.method == 'GET':
-        # 🎓 MUDANÇA: Lê o parâmetro 'status' da URL.
-        # O padrão é 'Disponível' se nada for fornecido.
+        #  MUDANA: LÃª o parÃ¢metro 'status' da URL.
+        # O padrÃ£o Ã© 'Disponível' se nada for fornecido.
         status = request.GET.get('status', 'Disponível')
         
         if status not in ['Disponível', 'Manutenção']:
             status = 'Disponível'
 
-        # 🎓 MUDANÇA: A query agora usa um placeholder (%s) para o status
+        #  MUDANA: A query agora usa um placeholder (%s) para o status
         sql_query = """
             SELECT
                 id_quarto, numero, tipo_quarto, valor_diaria, status_quarto
@@ -879,19 +879,19 @@ def quartos_view(request):
         """
         try:
             with connection.cursor() as cursor:
-                # 🎓 Passamos o status como parâmetro
+                #  Passamos o status como parÃ¢metro
                 cursor.execute(sql_query, [status])
                 quartos = dictfetchall(cursor)
             return success_response(quartos)
         except Exception as e:
             return error_response(str(e), 'SERVER_ERROR', 500)
 
-    # MÉTODO POST (Sem mudanças)
+    # MTODO POST (Sem mudanÃ§as)
     elif request.method == 'POST':
-        # ... (código do POST mantido) ...
+        # ... (cÃ³digo do POST mantido) ...
         try:
             data = json.loads(request.body)
-            # ... (validação e INSERT) ...
+            # ... (validaÃ§Ã£o e INSERT) ...
             sql_insert = """
                 INSERT INTO quarto (numero, valor_diaria, tipo_quarto, status_quarto)
                 VALUES (%s, %s, %s, %s)
@@ -904,7 +904,7 @@ def quartos_view(request):
             return success_response(novo_quarto, "QUARTO_CREATED", 201)
         except IntegrityError as e:
             if 'quarto_numero_key' in str(e):
-                return error_response(f'Erro: O número de quarto "{data.get("numero")}" já está cadastrado.', 'CONFLICT', 409)
+                return error_response(f'Erro: O nÃºmero de quarto "{data.get("numero")}" jÃ¡ estÃ¡ cadastrado.', 'CONFLICT', 409)
             return error_response(f'Erro de integridade: {str(e)}', 'DB_INTEGRITY_ERROR', 400)
         except Exception as e:
             return error_response(str(e), 'SERVER_ERROR', 500)
@@ -917,13 +917,13 @@ def quartos_view(request):
 @require_http_methods(["GET", "PUT", "DELETE"])
 def quarto_detail_view(request, quarto_id):
     """
-    View para um Quarto específico (/api/quartos/<id>/).
+    View para um Quarto especfico (/api/quartos/<id>/).
     - GET: Busca um quarto pelo ID.
     - PUT: Atualiza um quarto existente.
     - DELETE: Deleta um quarto.
     """
 
-    # MÉTODO GET (BY ID)
+    # MTODO GET (BY ID)
     if request.method == 'GET':
         try:
             with connection.cursor() as cursor:
@@ -932,13 +932,13 @@ def quarto_detail_view(request, quarto_id):
                 quarto = dictfetchall(cursor)
                 
                 if not quarto:
-                    return error_response('Quarto não encontrado.', 'NOT_FOUND', 404)
+                    return error_response('Quarto nÃ£o encontrado.', 'NOT_FOUND', 404)
                 
                 return success_response(quarto[0])
         except Exception as e:
             return error_response(str(e), 'SERVER_ERROR', 500)
 
-    # MÉTODO PUT (Atualizar)
+    # MTODO PUT (Atualizar)
     elif request.method == 'PUT':
         try:
             data = json.loads(request.body)
@@ -949,10 +949,10 @@ def quarto_detail_view(request, quarto_id):
             status_db = data.get('status_quarto')
 
             if not numero or not valor_diaria or not tipo_quarto or not status_db:
-                 return error_response('Todos os campos são obrigatórios.', 'VALIDATION_ERROR', 400)
+                 return error_response('Todos os campos sÃ£o obrigatÃ³rios.', 'VALIDATION_ERROR', 400)
 
             if status_db not in ['Disponível', 'Manutenção']:
-                return error_response(f"Status '{status_db}' inválido. Use 'Disponível' ou 'Manutenção'.", "VALIDATION_ERROR", 400)
+                return error_response(f"Status '{status_db}' invÃ¡lido. Use 'Disponível' ou 'Manutenção'.", "VALIDATION_ERROR", 400)
             
             sql_update = """
                 UPDATE quarto
@@ -970,7 +970,7 @@ def quarto_detail_view(request, quarto_id):
             with connection.cursor() as cursor:
                 cursor.execute(sql_update, params)
                 if cursor.rowcount == 0:
-                    return error_response('Quarto não encontrado com este ID.', 'NOT_FOUND', 404)
+                    return error_response('Quarto nÃ£o encontrado com este ID.', 'NOT_FOUND', 404)
                 
                 quarto_atualizado = dictfetchall(cursor)[0]
 
@@ -978,29 +978,29 @@ def quarto_detail_view(request, quarto_id):
         
         except IntegrityError as e:
             if 'quarto_numero_key' in str(e):
-                return error_response(f'Erro: O número de quarto "{numero}" já está cadastrado.', 'CONFLICT', 409)
+                return error_response(f'Erro: O nÃºmero de quarto "{numero}" jÃ¡ estÃ¡ cadastrado.', 'CONFLICT', 409)
             return error_response(f'Erro de integridade: {str(e)}', 'DB_INTEGRITY_ERROR', 400)
         except Exception as e:
             return error_response(str(e), 'SERVER_ERROR', 500)
 
-    # MÉTODO DELETE
+    # MTODO DELETE
     elif request.method == 'DELETE':
         try:
-            # 🎓 CONTROLE DE INTEGRIDADE (Sua Solicitação)
-            # Não podemos deletar um quarto que está em 'reserva_quarto'.
-            # O PostgreSQL irá barrar com IntegrityError, que vamos capturar.
+            #  CONTROLE DE INTEGRIDADE (Sua SolicitaÃ§Ã£o)
+            # NÃ£o podemos deletar um quarto que estÃ¡ em 'reserva_quarto'.
+            # O PostgreSQL irÃ¡ barrar com IntegrityError, que vamos capturar.
             with connection.cursor() as cursor:
                 cursor.execute("DELETE FROM quarto WHERE id_quarto = %s", [quarto_id])
                 if cursor.rowcount == 0:
-                    return error_response('Quarto não encontrado com este ID.', 'NOT_FOUND', 404)
+                    return error_response('Quarto nÃ£o encontrado com este ID.', 'NOT_FOUND', 404)
             
-            # 204 No Content é o padrão para DELETE bem-sucedido
+            # 204 No Content Ã© o padrÃ£o para DELETE bem-sucedido
             return success_response(None, "QUARTO_DELETED", 204) 
             
         except IntegrityError as e:
-            # 🎓 Erro pego! (fk_reserva_quarto_quarto)
+            #  Erro pego! (fk_reserva_quarto_quarto)
             return error_response(
-                'Não é possível excluir este quarto pois ele está vinculado a uma ou mais reservas.',
+                'NÃ£o Ã© possvel excluir este quarto pois ele estÃ¡ vinculado a uma ou mais reservas.',
                 'FK_CONSTRAINT',
                 409 # 409 Conflict
             )
@@ -1012,25 +1012,23 @@ def quarto_detail_view(request, quarto_id):
 # =======================================================================
 
 # -----------------------------------------------------------------
-# VIEW DE GESTÃO (BI) (Protegida)
+# VIEW DE GESTO (BI) (Protegida)
 # -----------------------------------------------------------------
 @csrf_exempt
 @token_required
 @require_http_methods(["GET"])
+
 def get_indicadores_gestao(request):
     """
-    Endpoint de BI (Business Intelligence) para o dashboard de Gestão.
-    🎓 REGRA DE NEGÓCIO ATUALIZADA:
-    O faturamento agora é calculado pela DATA DE CHECK-IN (Regime de Competência)
-    e não mais pela data de criação da reserva.
+    Endpoint de BI (Business Intelligence) para o dashboard de GestÃ£o.
+    Calcula indicadores sempre pelo check-in (regime de competÃªncia).
     """
     try:
-        # 1. LÓGICA DO FILTRO DE ANO (Mantida)
         try:
             ano_filtrar = int(request.GET.get('ano', datetime.datetime.now().year))
         except ValueError:
             ano_filtrar = datetime.datetime.now().year
-        
+
         data_inicio = f"{ano_filtrar}-01-01"
         data_fim = f"{ano_filtrar}-12-31"
 
@@ -1038,65 +1036,105 @@ def get_indicadores_gestao(request):
         faturamento_mensal = []
         taxa_ocupacao = {}
         faturamento_por_tipo = []
+        reservas_por_status = []
+        pagamentos_pendentes = {}
+        diarias_por_pais = []
+        lead_time_medio = 0
+
+        status_template = ['Agendada', 'Ativa', 'Concluda', 'Cancelada']
 
         with connection.cursor() as cursor:
-        
-            # 🎓 QUERY 1: KPIs (Refatorada para 'checkin')
-            #    Agora calcula o faturamento total e o N. de reservas
-            #    baseado nas reservas QUE TÊM CHECK-IN no ano filtrado.
             sql_kpi = """
                 SELECT
                     COALESCE(SUM(r.valor_total), 0.00) AS faturamento_total,
                     COALESCE(COUNT(DISTINCT r.id_reserva), 0) AS total_reservas
                 FROM reserva r
                 INNER JOIN reserva_quarto rq ON r.id_reserva = rq.fk_reserva
-                WHERE 
+                WHERE
                     r.status_reserva != 'Cancelada'
-                    -- 🎓 MUDANÇA: Filtra pelo check-in, não pela dt_criacao
-                    AND rq.checkin BETWEEN %s AND %s; 
+                    AND rq.checkin BETWEEN %s AND %s;
             """
             cursor.execute(sql_kpi, [data_inicio, data_fim])
             kpi_data = dictfetchall(cursor)[0]
-            
-            # 🎓 QUERY 2: Faturamento Mensal (Refatorada para 'checkin')
+
             sql_mensal = """
                 WITH meses AS (
                     SELECT date_trunc('month', (%s::date + (n || ' months')::interval)) AS mes
                     FROM generate_series(0, 11) AS n
-                ), meses_formatados AS (
-                    SELECT TO_CHAR(mes, 'YYYY-MM') AS mes_ano FROM meses
+                ),
+                meses_formatados AS (
+                    SELECT
+                        mes,
+                        TO_CHAR(mes, 'YYYY-MM') AS mes_ano,
+                        EXTRACT(DAY FROM (mes + interval '1 month' - mes))::int AS dias_mes
+                    FROM meses
+                ),
+                quartos_disponiveis AS (
+                    SELECT COUNT(*) AS total_quartos
+                    FROM quarto
+                    WHERE status_quarto = 'Disponível'
+                ),
+                faturamento AS (
+                    SELECT
+                        TO_CHAR(rq.checkin, 'YYYY-MM') AS mes_ano,
+                        SUM(r.valor_total) AS faturamento_mensal
+                    FROM reserva r
+                    JOIN reserva_quarto rq ON rq.fk_reserva = r.id_reserva
+                    WHERE
+                        r.status_reserva != 'Cancelada'
+                        AND rq.checkin BETWEEN %s AND %s
+                    GROUP BY 1
+                ),
+                ocupacao AS (
+                    SELECT
+                        TO_CHAR(date_trunc('month', dia), 'YYYY-MM') AS mes_ano,
+                        COUNT(*)::numeric AS dias_ocupados
+                    FROM reserva r
+                    JOIN reserva_quarto rq ON rq.fk_reserva = r.id_reserva
+                    CROSS JOIN LATERAL generate_series(
+                        rq.checkin,
+                        rq.checkout - interval '1 day',
+                        interval '1 day'
+                    ) AS dia
+                    WHERE
+                        r.status_reserva != 'Cancelada'
+                        AND rq.checkin BETWEEN %s AND %s
+                    GROUP BY 1
                 )
                 SELECT
                     mf.mes_ano,
-                    COALESCE(SUM(r.valor_total), 0.00) AS faturamento_mensal
+                    COALESCE(f.faturamento_mensal, 0.00) AS faturamento_mensal,
+                    COALESCE(o.dias_ocupados, 0) AS dias_ocupados,
+                    (qd.total_quartos * mf.dias_mes) AS dias_disponiveis_mes,
+                    CASE
+                        WHEN (qd.total_quartos * mf.dias_mes) = 0 THEN 0
+                        ELSE (COALESCE(o.dias_ocupados, 0) / (qd.total_quartos * mf.dias_mes)) * 100
+                    END AS taxa_ocupacao_percent
                 FROM meses_formatados mf
-                LEFT JOIN reserva_quarto rq ON TO_CHAR(rq.checkin, 'YYYY-MM') = mf.mes_ano
-                LEFT JOIN reserva r 
-                    ON rq.fk_reserva = r.id_reserva
-                    AND r.status_reserva != 'Cancelada'
-                GROUP BY mf.mes_ano
-                ORDER BY mf.mes_ano ASC;
+                CROSS JOIN quartos_disponiveis qd
+                LEFT JOIN faturamento f ON f.mes_ano = mf.mes_ano
+                LEFT JOIN ocupacao o ON o.mes_ano = mf.mes_ano
+                ORDER BY mf.mes ASC;
             """
-            cursor.execute(sql_mensal, [data_inicio])
+            cursor.execute(sql_mensal, [data_inicio, data_inicio, data_fim, data_inicio, data_fim])
             faturamento_mensal = dictfetchall(cursor)
-            
-            # 🎓 QUERY 3: Taxa de Ocupação (Lógica mantida, já usa 'checkin')
+
             sql_ocupacao = """
                 WITH dias_disponiveis AS (
                     SELECT
                         (COUNT(id_quarto) * (%s::date - %s::date + 1)) AS total_dias_base
                     FROM quarto
                     WHERE status_quarto = 'Disponível'
-                ), 
+                ),
                 dias_vendidos_interval AS (
-                    SELECT 
+                    SELECT
                         COALESCE(SUM(
-                            LEAST(rq.checkout, %s::date + interval '1 day') - 
+                            LEAST(rq.checkout, %s::date + interval '1 day') -
                             GREATEST(rq.checkin, %s::date)
-                        ), INTERVAL '0 days') AS total_intervalo_vendido 
+                        ), INTERVAL '0 days') AS total_intervalo_vendido
                     FROM reserva_quarto rq
                     JOIN reserva r ON rq.fk_reserva = r.id_reserva
-                    WHERE 
+                    WHERE
                         r.status_reserva != 'Cancelada'
                         AND (rq.checkin, rq.checkout) OVERLAPS (%s::date, %s::date + interval '1 day')
                 ),
@@ -1105,34 +1143,32 @@ def get_indicadores_gestao(request):
                         EXTRACT(EPOCH FROM total_intervalo_vendido) / 86400 AS total_dias_vendidos
                     FROM dias_vendidos_interval
                 )
-                SELECT 
+                SELECT
                     dv.total_dias_vendidos,
                     dd.total_dias_base,
-                    CASE 
+                    CASE
                         WHEN dd.total_dias_base = 0 THEN 0
-                        ELSE (dv.total_dias_vendidos / dd.total_dias_base) * 100 
+                        ELSE (dv.total_dias_vendidos / dd.total_dias_base) * 100
                     END AS taxa_ocupacao_percent
                 FROM dias_disponiveis dd, dias_vendidos dv;
             """
             params_ocupacao = [
-                data_fim, data_inicio,     # para dias_disponiveis
-                data_fim, data_inicio,     # para dias_vendidos_interval
-                data_inicio, data_fim      # para o OVERLAPS
+                data_fim, data_inicio,
+                data_fim, data_inicio,
+                data_inicio, data_fim
             ]
             cursor.execute(sql_ocupacao, params_ocupacao)
             taxa_ocupacao = dictfetchall(cursor)[0]
-            
-            # 🎓 QUERY 4: Faturamento por Tipo (Refatorada para 'checkin')
+
             sql_tipo_quarto = """
                 SELECT
                     q.tipo_quarto,
                     COALESCE(SUM(r.valor_total), 0.00) AS faturamento_por_tipo
                 FROM quarto q
                 LEFT JOIN reserva_quarto rq ON q.id_quarto = rq.fk_quarto
-                LEFT JOIN reserva r 
+                LEFT JOIN reserva r
                     ON rq.fk_reserva = r.id_reserva
                     AND r.status_reserva != 'Cancelada'
-                    -- 🎓 MUDANÇA: Filtra pelo check-in, não pela dt_criacao
                     AND rq.checkin BETWEEN %s AND %s
                 GROUP BY q.tipo_quarto
                 ORDER BY faturamento_por_tipo DESC;
@@ -1140,16 +1176,144 @@ def get_indicadores_gestao(request):
             cursor.execute(sql_tipo_quarto, [data_inicio, data_fim])
             faturamento_por_tipo = dictfetchall(cursor)
 
-        
-        # 4. Junta todos os dados na resposta (Mantido)
+            sql_reservas_status = """
+                SELECT
+                    r.status_reserva,
+                    COUNT(DISTINCT r.id_reserva) AS total
+                FROM reserva r
+                JOIN reserva_quarto rq ON rq.fk_reserva = r.id_reserva
+                WHERE (rq.checkin, rq.checkout) OVERLAPS (%s::date, %s::date + interval '1 day')
+                GROUP BY r.status_reserva;
+            """
+            cursor.execute(sql_reservas_status, [data_inicio, data_fim])
+            reservas_status_raw = dictfetchall(cursor)
+            status_map = {row['status_reserva']: int(row['total']) for row in reservas_status_raw}
+            reservas_por_status = [
+                {
+                    'status_reserva': status,
+                    'total': status_map.get(status, 0)
+                }
+                for status in status_template
+            ]
+
+            sql_pagamentos = """
+                SELECT
+                    COALESCE(SUM(r.valor_total), 0.00) AS valor_pendente,
+                    COALESCE(COUNT(DISTINCT r.id_reserva), 0) AS reservas_em_aberto
+                FROM reserva r
+                JOIN reserva_quarto rq ON rq.fk_reserva = r.id_reserva
+                WHERE
+                    r.status_reserva != 'Cancelada'
+                    AND r.status_pagamento IN ('Pendente','Em Partes')
+                    AND (rq.checkin, rq.checkout) OVERLAPS (%s::date, %s::date + interval '1 day');
+            """
+            cursor.execute(sql_pagamentos, [data_inicio, data_fim])
+            pagamentos_pendentes = dictfetchall(cursor)[0]
+
+            sql_diarias = """
+                SELECT
+                    h.pais_origem AS pais,
+                    COALESCE(SUM(
+                        GREATEST(
+                            EXTRACT(EPOCH FROM (
+                                LEAST(rq.checkout, %s::date + interval '1 day') -
+                                GREATEST(rq.checkin, %s::date)
+                            )),
+                            0
+                        )
+                    ) / 86400, 0) AS total_diarias
+                FROM reserva r
+                JOIN hospede h ON r.fk_hospede_titular = h.id_hospede
+                JOIN reserva_quarto rq ON rq.fk_reserva = r.id_reserva
+                WHERE
+                    r.status_reserva != 'Cancelada'
+                    AND (rq.checkin, rq.checkout) OVERLAPS (%s::date, %s::date + interval '1 day')
+                GROUP BY h.pais_origem
+                ORDER BY total_diarias DESC, h.pais_origem ASC
+                LIMIT 5;
+            """
+            cursor.execute(sql_diarias, [data_inicio, data_fim, data_inicio, data_fim])
+            diarias_por_pais = dictfetchall(cursor)
+
+            sql_lead_time = """
+                SELECT
+                    COALESCE(
+                        AVG(
+                            GREATEST(
+                                EXTRACT(EPOCH FROM (rq.checkin::timestamp - r.dt_criacao)),
+                                0
+                            )
+                        ) / 86400,
+                        0
+                    ) AS lead_time_medio
+                FROM reserva r
+                JOIN reserva_quarto rq ON rq.fk_reserva = r.id_reserva
+                WHERE
+                    rq.checkin BETWEEN %s AND %s
+                    AND r.status_reserva != 'Cancelada';
+            """
+            cursor.execute(sql_lead_time, [data_inicio, data_fim])
+            lead_time_medio = dictfetchall(cursor)[0].get('lead_time_medio', 0)
+
         response_data = {
             'kpis': kpi_data,
             'taxa_ocupacao': taxa_ocupacao,
             'faturamento_mensal': faturamento_mensal,
             'faturamento_por_tipo': faturamento_por_tipo,
+            'reservas_por_status': reservas_por_status,
+            'pagamentos_pendentes': pagamentos_pendentes,
+            'diarias_por_pais': diarias_por_pais,
+            'lead_time_medio': lead_time_medio,
             'ano_filtrado': ano_filtrar
         }
         return success_response(response_data)
-        
+
     except Exception as e:
         return error_response(str(e), 'SERVER_ERROR', 500)
+
+
+@csrf_exempt
+@token_required
+@require_http_methods(["GET"])
+def get_reservas_pendentes(request):
+    """
+    Retorna a lista de reservas com pagamentos pendentes ou parciais para o painel de GestÃ£o.
+    """
+    try:
+        with connection.cursor() as cursor:
+            sql = """
+                SELECT
+                    rq.id_reserva_quarto,
+                    r.id_reserva,
+                    r.status_reserva,
+                    r.status_pagamento,
+                    r.valor_total,
+                    rq.checkin,
+                    rq.checkout,
+                    q.numero AS numero_quarto,
+                    q.tipo_quarto,
+                    h.nome_hospede AS titular,
+                    h.telefone,
+                    h.email_hospede,
+                    GREATEST(
+                        (NOW()::date - rq.checkin)::int,
+                        0
+                    ) AS dias_desde_checkin
+                FROM reserva r
+                JOIN reserva_quarto rq ON rq.fk_reserva = r.id_reserva
+                LEFT JOIN quarto q ON rq.fk_quarto = q.id_quarto
+                LEFT JOIN hospede h ON r.fk_hospede_titular = h.id_hospede
+                WHERE
+                    r.status_reserva != 'Cancelada'
+                    AND r.status_pagamento IN ('Pendente','Em Partes')
+                ORDER BY rq.checkin ASC;
+            """
+            cursor.execute(sql)
+            reservas = dictfetchall(cursor)
+
+        return success_response({'reservas': reservas})
+    except Exception as e:
+        return error_response(str(e), 'ERRO_INTERNO', 500)
+
+
+

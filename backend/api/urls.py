@@ -7,6 +7,7 @@ urlpatterns = [
     path('login/', views.login_view, name='login_view'),
     path('perfil/', views.usuario_perfil_view, name='usuario_perfil_view'),
     path('gestao/indicadores/', views.get_indicadores_gestao, name='get_indicadores_gestao'),
+    path('gestao/reservas-pendentes/', views.get_reservas_pendentes, name='get_reservas_pendentes'),
 
     # --- Rotas de CRUD (Quartos, Hóspedes) ---
     # (GET, POST)
