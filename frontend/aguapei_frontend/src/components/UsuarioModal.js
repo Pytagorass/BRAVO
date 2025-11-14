@@ -32,7 +32,8 @@ function UsuarioModal({ show, handleClose }) {
             confirmar_senha: ''
           });
         } catch (err) {
-          setError(err.message || 'Falha ao carregar dados do perfil.');
+          const apiError = err?.error || err || {};
+          setError(apiError.message || 'Falha ao carregar dados do perfil.');
         } finally {
           setLoading(false);
         }
@@ -88,10 +89,11 @@ function UsuarioModal({ show, handleClose }) {
     } catch (errorData) {
       console.error('Erro ao atualizar perfil:', errorData);
 
-      if (errorData.code === 'CONFLICT') {
-        setError(errorData.message);
-      } else if (errorData.message) {
-        setError(errorData.message);
+      const apiError = errorData?.error || errorData || {};
+      if (apiError.code === 'CONFLICT') {
+        setError(apiError.message);
+      } else if (apiError.message) {
+        setError(apiError.message);
       } else {
         setError('Erro ao atualizar o perfil.');
       }

@@ -1,12 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Form, Alert, Col, Row, Spinner } from 'react-bootstrap';
-// 🎓 1. Importamos as funções de API específicas e o 'toast'
 import { createHospede, updateHospede } from '../services/api';
 import { toast } from 'react-toastify';
 
 function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
-
-    // Estado inicial do formulário
     const getInitialState = () => ({
         nome_hospede: '',
         telefone: '',
@@ -18,28 +15,25 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
 
     const [formData, setFormData] = useState(getInitialState());
     const [isSaving, setIsSaving] = useState(false);
-
-    // 🎓 2. O 'error' agora vai receber a MENSAGEM de erro da nossa API padronizada
     const [error, setError] = useState(null);
 
-    const isEditMode = cliente !== null;
+    const isEditMode = Boolean(cliente);
     const isBrasil = formData.pais_origem === 'Brasil';
 
-    // Efeito para preencher o formulário (Lógica original mantida, está correta)
     useEffect(() => {
-        if (isEditMode) {
+        if (isEditMode && cliente) {
             setFormData({
                 nome_hospede: cliente.nome_hospede || '',
                 telefone: cliente.telefone || '',
                 email_hospede: cliente.email_hospede || '',
-                pais_origem: cliente.pais_origem || 'Brasil', // Garante 'Brasil' se for nulo
+                pais_origem: cliente.pais_origem || 'Brasil',
                 passaporte: cliente.passaporte || '',
                 cpf: cliente.cpf || ''
             });
         } else {
             setFormData(getInitialState());
         }
-        setError(null); // Limpa erros ao abrir/trocar o modal
+        setError(null);
     }, [cliente, isEditMode, show]);
 
     // 🎓 3. HandleChange APRIMORADO
@@ -69,48 +63,28 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
         setError(null);
 
         try {
-            let response;
+            let savedCliente;
 
             if (isEditMode) {
-                // Modo Edição (PUT)
-                // A API (views.py) retorna { status: 'ok', data: {hospede_atualizado} }
-                response = await updateHospede(cliente.id_hospede, formData);
+                savedCliente = await updateHospede(cliente.id_hospede, formData);
                 toast.success('Cliente atualizado com sucesso!');
             } else {
-                // Modo Criação (POST)
-                // A API (views.py) retorna { status: 'ok', data: {novo_hospede} }
-                response = await createHospede(formData);
+                savedCliente = await createHospede(formData);
                 toast.success('Novo cliente salvo com sucesso!');
             }
 
-            // 🎓 5. ATUALIZAÇÃO EFICIENTE
-            //    Passamos o objeto (response.data) para o pai.
-            //    O pai pode agora atualizar o estado da lista *sem*
-            //    fazer um novo fetch de todos os clientes.
-            onSaveSuccess(response.data);
-            handleClose();    // Fecha o modal
+            onSaveSuccess(savedCliente);
+            handleClose();
 
         } catch (errorData) {
-            // 🎓 6. TRATAMENTO DE ERRO PADRONIZADO
-            //    'errorData' já é o objeto JSON de erro (ex: { status, code, message })
-            //    graças ao interceptor do 'apiClient' (services/api.js).
-
             console.error("Erro ao salvar:", errorData);
 
-            if (errorData.code === 'VALIDATION_ERROR') {
-                // Ex: "CPF é obrigatório para hóspedes do Brasil."
-                setError(errorData.message);
-            }
-            else if (errorData.code === 'CONFLICT') {
-                // Ex: "Este e-mail já está em uso."
-                setError(errorData.message);
-            }
-            else if (errorData.message) {
-                // Outros erros da API (ex: FK_CONSTRAINT, DB_INTEGRITY_ERROR)
-                setError(errorData.message);
-            }
-            else {
-                // Fallback para erros de rede (que o interceptor já deve ter tratado com toast)
+            const apiError = errorData?.error || errorData || {};
+            if (apiError.code === 'VALIDATION_ERROR' || apiError.code === 'CONFLICT') {
+                setError(apiError.message);
+            } else if (apiError.message) {
+                setError(apiError.message);
+            } else {
                 setError('Ocorreu um erro ao salvar. Tente novamente.');
             }
         } finally {

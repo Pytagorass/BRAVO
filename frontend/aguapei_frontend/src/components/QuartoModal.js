@@ -67,7 +67,8 @@ function QuartoModal({ show, handleClose, onSaveSuccess, quarto }) {
             handleClose();
         } catch (err) {
             console.error("Erro ao salvar quarto:", err);
-            setError(err.message || 'Ocorreu um erro desconhecido ao salvar.');
+            const apiError = err?.error || err || {};
+            setError(apiError.message || 'Ocorreu um erro desconhecido ao salvar.');
         } finally {
             setIsSaving(false);
         }

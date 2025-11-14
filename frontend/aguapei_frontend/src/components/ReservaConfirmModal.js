@@ -18,7 +18,7 @@ function ReservaConfirmModal({
     handleClose,    // função: para fechar (botão "Voltar")
     handleConfirm,  // função: para executar a ação (botão "Confirmar")
     loading,        // boolean: se está salvando (mostra spinner)
-    confirmData     // objeto: { titularNome, quartoNome, checkin, checkout, forma_pagamento }
+    confirmData     // objeto: { titularNome, quartoNome, checkin, checkout, status_pagamento }
 }) {
     
     // Não renderiza nada se não tiver os dados
@@ -53,11 +53,8 @@ function ReservaConfirmModal({
                     </div>
                     <div className="resumo-item">
                         <span>Status Pagamento:</span>
-                        {/* Adiciona classes de cor com base no status 
-                          (ex: 'status-pendente' será amarelo) 
-                        */}
-                        <strong className={`status-${confirmData.forma_pagamento.toLowerCase()}`}>
-                            {confirmData.forma_pagamento}
+                        <strong className={`status-${confirmData.status_pagamento.toLowerCase()}`}>
+                            {confirmData.status_pagamento}
                         </strong>
                     </div>
                 </div>

@@ -33,13 +33,13 @@ const PAGAMENTO_CHOICES = [
 function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar }) {
   const isEditMode = reservaParaEditar !== null;
 
-  const getInitialState = () => ({
+const getInitialState = () => ({
     titularId: '',
     quartoId: '',
     checkin: '',
     checkout: '',
     valor_total: 0,
-    forma_pagamento: 'Pendente',
+    status_pagamento: 'Pendente',
     observacao_reserva: '',
   });
 
@@ -89,7 +89,7 @@ function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar 
           checkin: moment(reservaParaEditar.checkin).format('YYYY-MM-DD'),
           checkout: moment(reservaParaEditar.checkout).format('YYYY-MM-DD'),
           valor_total: reservaParaEditar.valor_total || 0,
-          forma_pagamento: reservaParaEditar.status_pagamento || 'Pendente',
+          status_pagamento: reservaParaEditar.status_pagamento || 'Pendente',
           observacao_reserva: reservaParaEditar.observacao_reserva || '',
         });
         const acompanhanteIds = (reservaParaEditar.acompanhantes || []).map(
@@ -175,8 +175,7 @@ function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar 
       checkin: formData.checkin,
       checkout: formData.checkout,
       valor_total: formData.valor_total,
-      forma_pagamento: formData.forma_pagamento,
-      status_pagamento: formData.forma_pagamento,
+      status_pagamento: formData.status_pagamento,
       observacao_reserva: formData.observacao_reserva,
       acompanhantes: acompanhanteIds,
     };
@@ -193,7 +192,7 @@ function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar 
       quartoNome: quarto ? quarto.numero : 'N/A',
       checkin: formData.checkin,
       checkout: formData.checkout,
-      forma_pagamento: formData.forma_pagamento,
+      status_pagamento: formData.status_pagamento,
     });
 
     setPayload(finalPayload);
@@ -224,15 +223,16 @@ function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar 
       console.error('Erro ao salvar reserva:', errorData);
       setShowConfirm(false);
 
-      if (errorData.code === 'OVERBOOK_CONFLICT') {
-        const conflito = errorData.details;
+      const apiError = errorData?.error || errorData || {};
+      if (apiError.code === 'OVERBOOK' && apiError.details) {
+        const conflito = apiError.details;
         const checkinFmt = moment(conflito.checkin).format('DD/MM/YYYY');
         const checkoutFmt = moment(conflito.checkout).format('DD/MM/YYYY');
         setError(
-          `Conflito! Quarto já reservado por ${conflito.nome_titular_conflito} de ${checkinFmt} até ${checkoutFmt}.`
+          `Conflito! Quarto ja reservado por ${conflito.nome_titular_conflito} de ${checkinFmt} ate ${checkoutFmt}.`
         );
       } else {
-        setError(errorData.message || 'Ocorreu um erro desconhecido.');
+        setError(apiError.message || 'Ocorreu um erro desconhecido.');
       }
     } finally {
       setIsSaving(false);
@@ -400,8 +400,8 @@ function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar 
                     <Form.Group controlId="formFormaPagamento">
                       <Form.Label>Status Pagamento</Form.Label>
                       <Form.Select
-                        name="forma_pagamento"
-                        value={formData.forma_pagamento}
+                        name="status_pagamento"
+                        value={formData.status_pagamento}
                         onChange={handleChange}
                       >
                         {PAGAMENTO_CHOICES.map((opt) => (
@@ -462,8 +462,8 @@ function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar 
           show={showConfirm}
           handleClose={() => setShowConfirm(false)}
           confirmData={confirmData}
-          onConfirm={handleExecuteSubmit}
-          isSaving={isSaving}
+          handleConfirm={handleExecuteSubmit}
+          loading={isSaving}
         />
       )}
     </>
