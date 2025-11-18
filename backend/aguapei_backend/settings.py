@@ -14,7 +14,6 @@ ALLOWED_HOSTS = []
 # =======================================================================
 # APLICAÇÕES
 # =======================================================================
-# Esta lista está correta, limpa e minimalista.
 INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
@@ -33,10 +32,6 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
-    
-    # 🚀 REMOVIDO: Esta linha depende do 'django.contrib.auth', que não usamos.
-    # 'django.contrib.auth.middleware.AuthenticationMiddleware', 
-    
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -54,10 +49,6 @@ TEMPLATES = [
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.request',
-                
-                # 🚀 REMOVIDO: Este processador depende do 'django.contrib.auth'.
-                # 'django.contrib.auth.context_processors.auth',
-                
                 'django.contrib.messages.context_processors.messages',
             ],
         },
@@ -69,7 +60,6 @@ WSGI_APPLICATION = 'aguapei_backend.wsgi.application'
 # =======================================================================
 # BANCO DE DADOS
 # =======================================================================
-# (Suas configurações de banco estão corretas)
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -80,12 +70,6 @@ DATABASES = {
         'PORT': '5432',
     }
 }
-
-# =======================================================================
-# VALIDADORES DE SENHA
-# =======================================================================
-# 🚀 REMOVIDO: Este bloco inteiro depende do 'django.contrib.auth'.
-# AUTH_PASSWORD_VALIDATORS = [ ... ]
 
 
 # =======================================================================
@@ -107,27 +91,13 @@ CORS_ALLOWED_ORIGINS = [
 ]
 CORS_ALLOW_HEADERS = [
     "accept",
-    "authorization", # <-- Correto, necessário para seu JWT
+    "authorization", 
     "content-type",
     "origin",
     "x-csrftoken",
     "x-requested-with",
 ]
 
-# =======================================================================
-# REST FRAMEWORK
-# =======================================================================
-# 🚀 REMOVIDO: Este bloco depende do 'rest_framework' e 'auth',
-# que não estão mais em INSTALLED_APPS.
-# REST_FRAMEWORK = { ... }
-
-
-# =======================================================================
-# 🚀 NOSSA CORREÇÃO FINAL PARA O ERRO DE MIGRAÇÃO
-# =======================================================================
-# Isso diz ao Django para NUNCA checar as migrações do app 'api'.
-# Como usamos SQL Puro, não precisamos de migrações.
-# Isso corrige o erro 'NodeNotFoundError'.
 MIGRATION_MODULES = {
     'api': None,
 }

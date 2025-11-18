@@ -27,3 +27,8 @@
 .form-label {
     color: #30332e;
 }
+
+.login-logo{
+    width: 130px;                 /* ajuste livre */
+    height: auto; 
+}

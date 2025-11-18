@@ -96,7 +96,7 @@ const GestaoPage = () => {
         const data = await fetchIndicadoresGestao(anoSelecionado);
         setIndicadores(data);
       } catch (err) {
-        setError(err.message || 'Falha ao carregar os indicadores de gestÃ£o.');
+        setError(err.message || 'Falha ao carregar os indicadores de gestão.');
       } finally {
         setLoading(false);
       }
@@ -155,15 +155,11 @@ const GestaoPage = () => {
       taxa_ocupacao,
       faturamento_mensal,
       faturamento_por_tipo,
-      reservas_por_status = [],
       pagamentos_pendentes = {},
-      diarias_por_pais = [],
-      lead_time_medio = 0,
       ano_filtrado,
     } = indicadores;
     const pagamentosValor = Number(pagamentos_pendentes?.valor_pendente || 0);
     const reservasPendentes = Number(pagamentos_pendentes?.reservas_em_aberto || 0);
-    const leadTimeFormatado = formatDecimal(lead_time_medio, 1);
     const diasVendidosFmt = formatNumber(taxa_ocupacao?.total_dias_vendidos || 0);
     const diasBaseFmt = formatNumber(taxa_ocupacao?.total_dias_base || 0);
     const barChartLabels = faturamento_mensal.map((item) => formatChartLabel(item.mes_ano));
@@ -339,64 +335,6 @@ const GestaoPage = () => {
           </Col>
         </Row>
 
-
-        <Row className="mb-4">
-          <Col md={4} className="mb-3">
-            <Card className="kpi-card h-100">
-              <Card.Body>
-                <Card.Title className="kpi-card-title">Tempo Médio de Antecedência</Card.Title>
-                <Card.Text className="kpi-card-value">{leadTimeFormatado} dias</Card.Text>
-                <small className="kpi-subtext text-muted">
-                  Diferença média entre a criação e o check-in
-                </small>
-              </Card.Body>
-            </Card>
-          </Col>
-
-          <Col md={4} className="mb-3">
-            <Card className="kpi-card h-100">
-              <Card.Body>
-                <Card.Title className="kpi-card-title">Reservas por Status</Card.Title>
-                {reservas_por_status.length ? (
-                  <ul className="status-list">
-                    {reservas_por_status.map((item) => (
-                      <li key={item.status_reserva}>
-                        <span>{item.status_reserva}</span>
-                        <Badge bg={STATUS_BADGE_VARIANT[item.status_reserva] || 'secondary'}>
-                          {item.total}
-                        </Badge>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-muted mb-0">Sem reservas registradas no perí­odo.</p>
-                )}
-              </Card.Body>
-            </Card>
-          </Col>
-
-          <Col md={4} className="mb-3">
-            <Card className="kpi-card h-100">
-              <Card.Body>
-                <Card.Title className="kpi-card-title">Top Paí­ses (Diárias)</Card.Title>
-                {diarias_por_pais.length ? (
-                  <ul className="paises-list">
-                    {diarias_por_pais.map((pais) => (
-                      <li key={pais.pais || 'Sem PaÃ­s'}>
-                        <span>{pais.pais || 'NÃ£o informado'}</span>
-                        <span className="fw-semibold">
-                          {formatNumber(pais.total_diarias)} diÃ¡rias
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-muted mb-0">Sem hospedagens por paÃ­s para o perÃ­odo.</p>
-                )}
-              </Card.Body>
-            </Card>
-          </Col>
-        </Row>
         <Row>
           <Col md={8} className="mb-3 mb-md-0">
             <Card className="financial-panel">
@@ -504,7 +442,7 @@ const GestaoPage = () => {
   return (
     <div className="gestao-page">
       <div className="page-header">
-        <h1>GestÃ£o AguapeÃ­ - RelatÃ³rios e Indicadores</h1>
+        <h1>Gestão Aguapé - Relatórios e Indicadores</h1>
         <div style={{ width: '200px' }}>
           <Form.Select
             value={anoSelecionado}

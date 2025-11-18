@@ -71,11 +71,16 @@ function Login() {
         <div className="login-background">
             <Container className="d-flex justify-content-center align-items-center vh-100">
                 <Card className="login-card p-4 shadow-sm">
-                    <Card.Body>
+                    <Card.Body className="text-center">
                         <h3 className="text-center fw-bold" style={{ color: '#26522c' }}>
-                            Pathfinder
+                            Aguapé
                         </h3>
-                        <p className="text-center text-muted mb-4">Aguapé</p>
+                        <img
+                            src='/iconeAguape.ico'
+                            alt='Logo Aguapé'
+                            className="login-logo"
+                        />
+                        <p className="text-center text-muted mb-4">Grupo Pathfinder</p>
 
                         <Form onSubmit={handleSubmit}>
                             
@@ -109,9 +114,7 @@ function Login() {
                                     {loading ? 'Entrando...' : 'Entrar'}
                                 </Button>
                                 
-                                <Button variant="danger" type="button">
-                                    Esqueci a Senha
-                                </Button>
+
                             </div>
                         </Form>
                     </Card.Body>

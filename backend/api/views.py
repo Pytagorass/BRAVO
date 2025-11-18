@@ -1,28 +1,28 @@
 ﻿# =======================================================================
-# 1. IMPORTAES
+# 1. IMPORTAÇÕES
 # =======================================================================
 import json
 import jwt
 import datetime
-import bcrypt #  IMPORTADO PARA HASHING DE SENHA
+import bcrypt 
 from functools import wraps
 
-# ImportaÃ§Ãµes do Django
+# Importações do Django
 from django.db import connection, IntegrityError, transaction
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
-from django.views.decorators.http import require_http_methods #  Boa prÃ¡tica
+from django.views.decorators.http import require_http_methods
 
-# --- Importa nosso decorador de autenticaÃ§Ã£o ---
+# --- Importa decorador de autenticação ---
 from .auth_decorator import token_required
 
 # =======================================================================
-# 2. FUNES UTILITRIAS (Helpers)
+# 2. FUNÇÕES UTILITÁRIAS (Helpers)
 # =======================================================================
 def dictfetchall(cursor):
     """
-    Converte o resultado de cursor.fetchall() em uma lista de dicionÃ¡rios.
+    Converte o resultado de cursor.fetchall() em uma lista de dicionários.
     """
     columns = [col[0] for col in cursor.description]
     return [
@@ -31,7 +31,7 @@ def dictfetchall(cursor):
     ]
 
 #  =======================================================================
-#  2B. HELPERS DE RESPOSTA PADRONIZADA (Sua SolicitaÃ§Ã£o)
+#  2B. HELPERS DE RESPOSTA PADRONIZADA (Sua Solicitação)
 #  =======================================================================
 def success_response(data=None, code="OK", status_code=200):
     """
@@ -67,24 +67,18 @@ def error_response(message, code="ERRO_INTERNO", status_code=400, details=None):
 # =======================================================================
 
 # -----------------------------------------------------------------
-# VIEW DE LOGIN (NO protegida)
+# VIEW DE LOGIN (protegida)
 # -----------------------------------------------------------------
 @csrf_exempt
-@require_http_methods(["POST"]) #  Garante que sÃ³ aceita POST
+@require_http_methods(["POST"])
 def login_view(request):
-    """
-    Endpoint de login.
-     REATORADO:
-    1. Usa bcrypt.checkpw() para comparar senhas (SeguranÃ§a).
-    2. Usa os helpers error_response/success_response (PadronizaÃ§Ã£o).
-    """
     try:
         data = json.loads(request.body)
         email = data.get('email')
         senha_recebida = data.get('senha')
 
         if not email or not senha_recebida:
-            return error_response('Email e senha sÃ£o obrigatÃ³rios', 'VALIDATION_ERROR', 400)
+            return error_response('Email e senha são obrigatórios', 'VALIDATION_ERROR', 400)
 
         sql_query = """
             SELECT id_usuario, nome_usuario, email_usuario, tipo_usuario, senha 
@@ -97,16 +91,16 @@ def login_view(request):
             user_data = dictfetchall(cursor)
 
             if not user_data:
-                return error_response('Credenciais invÃ¡lidas ou usuÃ¡rio inativo', 'AUTH_FAILED', 401)
+                return error_response('Credenciais inválidas ou usuário inativo', 'AUTH_FAILED', 401)
 
             usuario = user_data[0]
             senha_hash_bd = usuario['senha'].encode('utf-8')
             
-            #  VULNERABILIDADE CORRIGIDA: ComparaÃ§Ã£o de hash
+            #  VULNERABILIDADE CORRIGIDA: Comparação de hash
             if not bcrypt.checkpw(senha_recebida.encode('utf-8'), senha_hash_bd):
-                return error_response('Credenciais invÃ¡lidas', 'AUTH_FAILED', 401)
+                return error_response('Credenciais inválidas', 'AUTH_FAILED', 401)
 
-            # GeraÃ§Ã£o do Payload e Token
+            # Geração do Payload e Token
             payload = {
                 'id_usuario': usuario['id_usuario'],
                 'email': usuario['email_usuario'],
@@ -135,17 +129,11 @@ def login_view(request):
 # -----------------------------------------------------------------
 # VIEW DA AGENDA (Gantt) (Protegida)
 # -----------------------------------------------------------------
-@csrf_exempt #  @csrf_exempt nÃ£o Ã© necessÃ¡rio com @token_required se o token vai no Header
+@csrf_exempt 
 @token_required 
 @require_http_methods(["GET"])
 def get_agenda_reservas(request):
-    """
-    Endpoint principal para carregar o GrÃ¡fico de Gantt.
-     REATORADO:
-    1. Usa os helpers error_response/success_response (PadronizaÃ§Ã£o).
-    2. Filtra reservas 'Cancelada' (boa prÃ¡tica para o Gantt).
-    """
-    
+
     sql_query = """
         SELECT
             rq.id_reserva_quarto, 
@@ -341,16 +329,13 @@ def reservas_view(request):
         return error_response(str(e), 'ERRO_INTERNO', 500)
 
 # -----------------------------------------------------------------
-# VIEW: EDITAR RESERVA (FormulÃ¡rio Completo)
+# VIEW: EDITAR RESERVA 
 # -----------------------------------------------------------------
 @csrf_exempt
 @token_required
 @transaction.atomic
 @require_http_methods(["PUT"])
 def edit_reserva_view(request, reserva_quarto_id):
-    """
-    View para 'Editar' a reserva (FormulÃ¡rio completo) com validaÃ§Ãµes de negÃ³cio.
-    """
     try:
         data = json.loads(request.body)
 
@@ -489,28 +474,20 @@ def edit_reserva_view(request, reserva_quarto_id):
         return error_response(str(e), 'ERRO_INTERNO', 500)
 
 # -----------------------------------------------------------------
-# VIEW: ATUALIZAR STATUS (AÃ§Ãµes RÃ¡pidas: Cancelar, Pagar, etc.)
+# VIEW: ATUALIZAR STATUS
 # -----------------------------------------------------------------
 @csrf_exempt
 @token_required
 @transaction.atomic
 @require_http_methods(["PATCH"])
 def update_reserva_status_view(request, reserva_quarto_id):
-    """
-    View para 'Editar' a reserva (aÃ§Ãµes rÃ¡pidas).
-    Aceita PATCH para /api/agenda/update-status/<id>/
-    
-     REATORADO:
-    1. Adicionado SELECT ... FOR UPDATE (Controle de ConcorrÃªncia).
-    2. PadronizaÃ§Ã£o de todas as respostas (success/error).
-    """
     try:
         data = json.loads(request.body)
         novo_status_reserva = data.get('status_reserva')
         novo_status_pagamento = data.get('status_pagamento')
 
         if not novo_status_reserva and not novo_status_pagamento:
-            return error_response('Nenhum status foi enviado para atualizaÃ§Ã£o.', 'VALIDATION_ERROR', 400)
+            return error_response('Nenhum status foi enviado para atualização.', 'VALIDATION_ERROR', 400)
 
         with connection.cursor() as cursor:
             
@@ -518,15 +495,14 @@ def update_reserva_status_view(request, reserva_quarto_id):
             cursor.execute("SELECT fk_reserva FROM reserva_quarto WHERE id_reserva_quarto = %s", [reserva_quarto_id])
             reserva_link = cursor.fetchone()
             if not reserva_link:
-                return error_response('Reserva (link quarto) nÃ£o encontrada.', 'NOT_FOUND', 404)
+                return error_response('Reserva (link quarto) não encontrada.', 'NOT_FOUND', 404)
             
             id_reserva_principal = reserva_link[0]
 
-            #  CONTROLE DE CONCORRNCIA (Sua SolicitaÃ§Ã£o)
             # Trava a linha da 'reserva' principal.
             cursor.execute("SELECT 1 FROM reserva WHERE id_reserva = %s FOR UPDATE", [id_reserva_principal])
 
-            # 3. Monta a query de atualizaÃ§Ã£o dinamicamente
+            # 3. Monta a query de atualização dinamicamente
             campos_para_atualizar = []
             params = []
             if novo_status_reserva:
@@ -544,7 +520,7 @@ def update_reserva_status_view(request, reserva_quarto_id):
             # 5. Retorna o objeto ATUALIZADO
             reserva_obj = _get_reserva_detalhes_internal(cursor, reserva_quarto_id)
             if not reserva_obj:
-                 return error_response('Reserva nÃ£o encontrada apÃ³s atualizaÃ§Ã£o.', 'NOT_FOUND', 404)
+                 return error_response('Reserva não encontrada após atualização.', 'NOT_FOUND', 404)
 
         return success_response(reserva_obj, "STATUS_UPDATED")
 
@@ -560,7 +536,7 @@ def update_reserva_status_view(request, reserva_quarto_id):
 @require_http_methods(["GET", "POST"])
 def hospedes_view(request):
     
-    # MTODO GET (Filtra por status Ativo/Inativo)
+    # MÉTODO GET (Filtra por status Ativo/Inativo)
     if request.method == 'GET':
         status = request.GET.get('status', 'Ativo')
         if status not in ['Ativo', 'Inativo']:
@@ -581,16 +557,16 @@ def hospedes_view(request):
         except Exception as e:
             return error_response(str(e), 'SERVER_ERROR', 500)
 
-    # MTODO POST (Cria novo hÃ³spede)
+    # MÉTODO POST (Cria novo hóspede)
     elif request.method == 'POST':
         try:
             data = json.loads(request.body)
             
-            # ValidaÃ§Ãµes prÃ©-insert
+            # Validações pré-insert
             if data.get('pais_origem', 'Brasil') == 'Brasil' and not data.get('cpf'):
-                return error_response("CPF Ã© obrigatÃ³rio para hÃ³spedes do Brasil.", "VALIDATION_ERROR", 400)
+                return error_response("CPF é obrigatório para hóspedes do Brasil.", "VALIDATION_ERROR", 400)
             if data.get('pais_origem', 'Brasil') != 'Brasil' and not data.get('passaporte'):
-                return error_response("Passaporte Ã© obrigatÃ³rio para hÃ³spedes estrangeiros.", "VALIDATION_ERROR", 400)
+                return error_response("Passaporte é obrigatório para hóspedes estrangeiros.", "VALIDATION_ERROR", 400)
 
             sql_insert = """
                 INSERT INTO hospede (nome_hospede, email_hospede, telefone, pais_origem, cpf, passaporte)
@@ -622,16 +598,16 @@ def hospedes_view(request):
 @require_http_methods(["PUT", "DELETE", "PATCH"]) 
 def hospede_detail_view(request, hospede_id):
     
-    # MTODO PUT (Atualizar)
+    # MÉTODO PUT (Atualizar)
     if request.method == 'PUT':
         try:
             data = json.loads(request.body)
             
-            # ValidaÃ§Ãµes
+            # Validações
             if data.get('pais_origem', 'Brasil') == 'Brasil' and not data.get('cpf'):
-                return error_response("CPF Ã© obrigatÃ³rio para hÃ³spedes do Brasil.", "VALIDATION_ERROR", 400)
+                return error_response("CPF é obrigatório para hóspedes do Brasil.", "VALIDATION_ERROR", 400)
             if data.get('pais_origem', 'Brasil') != 'Brasil' and not data.get('passaporte'):
-                return error_response("Passaporte Ã© obrigatÃ³rio para hÃ³spedes estrangeiros.", "VALIDATION_ERROR", 400)
+                return error_response("Passaporte é obrigatório para hóspedes estrangeiros.", "VALIDATION_ERROR", 400)
 
             sql_update = """
                 UPDATE hospede
@@ -650,7 +626,7 @@ def hospede_detail_view(request, hospede_id):
             with connection.cursor() as cursor:
                 cursor.execute(sql_update, params)
                 if cursor.rowcount == 0:
-                    return error_response('Cliente nÃ£o encontrado.', 'NOT_FOUND', 404)
+                    return error_response('Cliente não encontrado.', 'NOT_FOUND', 404)
                 hospede_atualizado = dictfetchall(cursor)[0]
             
             return success_response(hospede_atualizado, "HOSPEDE_UPDATED")
@@ -659,7 +635,7 @@ def hospede_detail_view(request, hospede_id):
         except Exception as e:
             return error_response(str(e), 'SERVER_ERROR', 500)
             
-    # MTODO DELETE (Inativar)
+    # MÉTODO DELETE (Inativar)
     elif request.method == 'DELETE':
         try:
             with connection.cursor() as cursor:
@@ -667,33 +643,33 @@ def hospede_detail_view(request, hospede_id):
                 cursor.execute(sql_inativar, [hospede_id])
                 
                 if cursor.rowcount == 0:
-                    return error_response('Cliente nÃ£o encontrado com este ID.', 'NOT_FOUND', 404)
+                    return error_response('Cliente nãoo encontrado com este ID.', 'NOT_FOUND', 404)
             
             return success_response(None, "HOSPEDE_INACTIVATED", 204) 
             
         except IntegrityError as e:
             return error_response(
-                'NÃ£o Ã© possvel inativar este hÃ³spede (erro de integridade).',
+                'Não é possível inativar este hóspede (erro de integridade).',
                 'FK_CONSTRAINT', 409 
             )
         except Exception as e:
             return error_response(str(e), 'SERVER_ERROR', 500)
     
-    # MTODO 'PATCH' (Reativar)
+    # MÉTODO 'PATCH' (Reativar)
     elif request.method == 'PATCH':
         try:
             data = json.loads(request.body)
             novo_status = data.get('ativo')
 
             if novo_status not in ['Ativo', 'Inativo']:
-                return error_response("Status invÃ¡lido. Envie 'Ativo' ou 'Inativo'.", "VALIDATION_ERROR", 400)
+                return error_response("Status inválido. Envie 'Ativo' ou 'Inativo'.", "VALIDATION_ERROR", 400)
 
             with connection.cursor() as cursor:
                 sql_update = "UPDATE hospede SET ativo = %s WHERE id_hospede = %s"
                 cursor.execute(sql_update, [novo_status, hospede_id])
                 
                 if cursor.rowcount == 0:
-                    return error_response('Cliente nÃ£o encontrado.', 'NOT_FOUND', 404)
+                    return error_response('Cliente não encontrado.', 'NOT_FOUND', 404)
             
             return success_response(None, "STATUS_UPDATED", 200) 
 
@@ -707,22 +683,16 @@ def hospede_detail_view(request, hospede_id):
 @token_required
 @require_http_methods(["GET", "PUT"])
 def usuario_perfil_view(request):
-    """
-    View para o perfil do usuÃ¡rio logado (/api/perfil/).
-     REATORADO:
-    1. Usa bcrypt.hashpw() para atualizar senha (SeguranÃ§a).
-    2. Usa os helpers error_response/success_response (PadronizaÃ§Ã£o).
-    """
     try:
         user_id = request.user_token_payload.get('id_usuario')
         if not user_id:
-            return error_response('Token invÃ¡lido, ID de usuÃ¡rio nÃ£o encontrado.', 'INVALID_TOKEN', 401)
+            return error_response('Token inválido, ID de usuário não encontrado.', 'INVALID_TOKEN', 401)
     except Exception as e:
         return error_response(f'Erro ao processar token: {str(e)}', 'INVALID_TOKEN', 401)
 
     with connection.cursor() as cursor:
         
-        # MTODO GET: Buscar dados
+        # MÉTODO GET: Buscar dados
         if request.method == 'GET':
             try:
                 sql_get = "SELECT id_usuario, nome_usuario, email_usuario FROM usuario WHERE id_usuario = %s"
@@ -730,20 +700,20 @@ def usuario_perfil_view(request):
                 usuario = dictfetchall(cursor)
                 
                 if not usuario:
-                    return error_response('UsuÃ¡rio nÃ£o encontrado no banco.', 'NOT_FOUND', 404)
+                    return error_response('Usuário não encontrado no banco.', 'NOT_FOUND', 404)
                 
                 return success_response(usuario[0])
             
             except Exception as e:
                 return error_response(f'Erro no GET: {str(e)}', 'SERVER_ERROR', 500)
 
-        # MTODO PUT: Atualizar o perfil
+        # MÉTODO PUT: Atualizar o perfil
         elif request.method == 'PUT':
             try:
                 data = json.loads(request.body)
                 nome = data.get('nome_usuario')
                 email = data.get('email_usuario')
-                senha = data.get('senha') # O modal enviarÃ¡ 'senha' se ela for mudada
+                senha = data.get('senha') 
 
                 sql_update_query = "UPDATE usuario SET nome_usuario = %s, email_usuario = %s"
                 params = [nome, email]
@@ -761,12 +731,12 @@ def usuario_perfil_view(request):
                 cursor.execute(sql_update_query, params)
                 
                 if cursor.rowcount == 0:
-                    return error_response('UsuÃ¡rio nÃ£o encontrado, nada atualizado.', 'NOT_FOUND', 404)
+                    return error_response('Usuário não encontrado, nada atualizado.', 'NOT_FOUND', 404)
 
                 return success_response(None, 'PROFILE_UPDATED')
 
             except IntegrityError as e:
-                return error_response('Este e-mail jÃ¡ estÃ¡ em uso por outra conta.', 'CONFLICT', 409)
+                return error_response('Este e-mail já¡ está em uso por outra conta.', 'CONFLICT', 409)
             except Exception as e:
                 return error_response(f'Erro no PUT: {str(e)}', 'SERVER_ERROR', 500)
 
@@ -778,15 +748,12 @@ def usuario_perfil_view(request):
 @token_required
 @require_http_methods(["GET"])
 def get_reserva_detalhes(request, reserva_quarto_id):
-    """
-    Endpoint para buscar os detalhes de UMA reserva especfica.
-    """
     try:
         with connection.cursor() as cursor:
             detalhes = _get_reserva_detalhes_internal(cursor, reserva_quarto_id)
             
             if not detalhes:
-                return error_response('Reserva nÃ£o encontrada', 'NOT_FOUND', 404)
+                return error_response('Reserva não encontrada', 'NOT_FOUND', 404)
             
             return success_response(detalhes)
 
@@ -795,13 +762,9 @@ def get_reserva_detalhes(request, reserva_quarto_id):
 
 # -----------------------------------------------------------------
 #  FUNO INTERNA (Helper) para buscar detalhes da reserva
-#    (Evita duplicaÃ§Ã£o de cÃ³digo entre PUT, PATCH e GET)
 # -----------------------------------------------------------------
 def _get_reserva_detalhes_internal(cursor, reserva_quarto_id):
-    """
-    FunÃ§Ã£o helper que executa as queries para buscar todos os dados
-    de uma reserva, dado um cursor jÃ¡ aberto.
-    """
+
     detalhes = {}
     
     # Query 1: Busca os dados principais
@@ -829,7 +792,7 @@ def _get_reserva_detalhes_internal(cursor, reserva_quarto_id):
     detalhes_result = dictfetchall(cursor)
     
     if not detalhes_result:
-        return None # Retorna None se nÃ£o achar
+        return None # Retorna None se não achar
     
     detalhes = detalhes_result[0]
     fk_reserva_principal = detalhes['id_reserva']
@@ -860,10 +823,9 @@ def _get_reserva_detalhes_internal(cursor, reserva_quarto_id):
 @require_http_methods(["GET", "POST"])
 def quartos_view(request):
     
-    # MTODO GET
+    # MÉTODO GET
     if request.method == 'GET':
-        #  MUDANA: LÃª o parÃ¢metro 'status' da URL.
-        # O padrÃ£o Ã© 'Disponível' se nada for fornecido.
+         # O padrão é 'Disponível' se nada for fornecido.
         status = request.GET.get('status', 'Disponível')
         
         if status not in ['Disponível', 'Manutenção']:
@@ -879,19 +841,17 @@ def quartos_view(request):
         """
         try:
             with connection.cursor() as cursor:
-                #  Passamos o status como parÃ¢metro
                 cursor.execute(sql_query, [status])
                 quartos = dictfetchall(cursor)
             return success_response(quartos)
         except Exception as e:
             return error_response(str(e), 'SERVER_ERROR', 500)
 
-    # MTODO POST (Sem mudanÃ§as)
+    # MÉTODO POST
     elif request.method == 'POST':
-        # ... (cÃ³digo do POST mantido) ...
         try:
             data = json.loads(request.body)
-            # ... (validaÃ§Ã£o e INSERT) ...
+            
             sql_insert = """
                 INSERT INTO quarto (numero, valor_diaria, tipo_quarto, status_quarto)
                 VALUES (%s, %s, %s, %s)
@@ -904,7 +864,7 @@ def quartos_view(request):
             return success_response(novo_quarto, "QUARTO_CREATED", 201)
         except IntegrityError as e:
             if 'quarto_numero_key' in str(e):
-                return error_response(f'Erro: O nÃºmero de quarto "{data.get("numero")}" jÃ¡ estÃ¡ cadastrado.', 'CONFLICT', 409)
+                return error_response(f'Erro: O número de quarto "{data.get("numero")}" já está cadastrado.', 'CONFLICT', 409)
             return error_response(f'Erro de integridade: {str(e)}', 'DB_INTEGRITY_ERROR', 400)
         except Exception as e:
             return error_response(str(e), 'SERVER_ERROR', 500)
@@ -916,14 +876,8 @@ def quartos_view(request):
 @token_required
 @require_http_methods(["GET", "PUT", "DELETE"])
 def quarto_detail_view(request, quarto_id):
-    """
-    View para um Quarto especfico (/api/quartos/<id>/).
-    - GET: Busca um quarto pelo ID.
-    - PUT: Atualiza um quarto existente.
-    - DELETE: Deleta um quarto.
-    """
 
-    # MTODO GET (BY ID)
+    # MÉTODO GET (BY ID)
     if request.method == 'GET':
         try:
             with connection.cursor() as cursor:
@@ -932,13 +886,13 @@ def quarto_detail_view(request, quarto_id):
                 quarto = dictfetchall(cursor)
                 
                 if not quarto:
-                    return error_response('Quarto nÃ£o encontrado.', 'NOT_FOUND', 404)
+                    return error_response('Quarto não encontrado.', 'NOT_FOUND', 404)
                 
                 return success_response(quarto[0])
         except Exception as e:
             return error_response(str(e), 'SERVER_ERROR', 500)
 
-    # MTODO PUT (Atualizar)
+    # MÉTODO PUT (Atualizar)
     elif request.method == 'PUT':
         try:
             data = json.loads(request.body)
@@ -949,10 +903,10 @@ def quarto_detail_view(request, quarto_id):
             status_db = data.get('status_quarto')
 
             if not numero or not valor_diaria or not tipo_quarto or not status_db:
-                 return error_response('Todos os campos sÃ£o obrigatÃ³rios.', 'VALIDATION_ERROR', 400)
+                 return error_response('Todos os campos são obrigatórios.', 'VALIDATION_ERROR', 400)
 
             if status_db not in ['Disponível', 'Manutenção']:
-                return error_response(f"Status '{status_db}' invÃ¡lido. Use 'Disponível' ou 'Manutenção'.", "VALIDATION_ERROR", 400)
+                return error_response(f"Status '{status_db}' inválido. Use 'Disponível' ou 'Manutenção'.", "VALIDATION_ERROR", 400)
             
             sql_update = """
                 UPDATE quarto
@@ -970,7 +924,7 @@ def quarto_detail_view(request, quarto_id):
             with connection.cursor() as cursor:
                 cursor.execute(sql_update, params)
                 if cursor.rowcount == 0:
-                    return error_response('Quarto nÃ£o encontrado com este ID.', 'NOT_FOUND', 404)
+                    return error_response('Quarto não encontrado com este ID.', 'NOT_FOUND', 404)
                 
                 quarto_atualizado = dictfetchall(cursor)[0]
 
@@ -978,29 +932,29 @@ def quarto_detail_view(request, quarto_id):
         
         except IntegrityError as e:
             if 'quarto_numero_key' in str(e):
-                return error_response(f'Erro: O nÃºmero de quarto "{numero}" jÃ¡ estÃ¡ cadastrado.', 'CONFLICT', 409)
+                return error_response(f'Erro: O número de quarto "{numero}" já está cadastrado.', 'CONFLICT', 409)
             return error_response(f'Erro de integridade: {str(e)}', 'DB_INTEGRITY_ERROR', 400)
         except Exception as e:
             return error_response(str(e), 'SERVER_ERROR', 500)
 
-    # MTODO DELETE
+    # MÉTODO DELETE
     elif request.method == 'DELETE':
         try:
-            #  CONTROLE DE INTEGRIDADE (Sua SolicitaÃ§Ã£o)
-            # NÃ£o podemos deletar um quarto que estÃ¡ em 'reserva_quarto'.
-            # O PostgreSQL irÃ¡ barrar com IntegrityError, que vamos capturar.
+            #  CONTROLE DE INTEGRIDADE
+            # Não podemos deletar um quarto que está em 'reserva_quarto'.
+            # O PostgreSQL irá barrar com IntegrityError, que vamos capturar.
             with connection.cursor() as cursor:
                 cursor.execute("DELETE FROM quarto WHERE id_quarto = %s", [quarto_id])
                 if cursor.rowcount == 0:
-                    return error_response('Quarto nÃ£o encontrado com este ID.', 'NOT_FOUND', 404)
+                    return error_response('Quarto não encontrado com este ID.', 'NOT_FOUND', 404)
             
-            # 204 No Content Ã© o padrÃ£o para DELETE bem-sucedido
+            # 204 Padrão para DELETE bem-sucedido
             return success_response(None, "QUARTO_DELETED", 204) 
             
         except IntegrityError as e:
             #  Erro pego! (fk_reserva_quarto_quarto)
             return error_response(
-                'NÃ£o Ã© possvel excluir este quarto pois ele estÃ¡ vinculado a uma ou mais reservas.',
+                'Não é possvel excluir este quarto pois ele está vinculado a uma ou mais reservas.',
                 'FK_CONSTRAINT',
                 409 # 409 Conflict
             )
@@ -1019,10 +973,7 @@ def quarto_detail_view(request, quarto_id):
 @require_http_methods(["GET"])
 
 def get_indicadores_gestao(request):
-    """
-    Endpoint de BI (Business Intelligence) para o dashboard de GestÃ£o.
-    Calcula indicadores sempre pelo check-in (regime de competÃªncia).
-    """
+
     try:
         try:
             ano_filtrar = int(request.GET.get('ano', datetime.datetime.now().year))
@@ -1277,7 +1228,7 @@ def get_indicadores_gestao(request):
 @require_http_methods(["GET"])
 def get_reservas_pendentes(request):
     """
-    Retorna a lista de reservas com pagamentos pendentes ou parciais para o painel de GestÃ£o.
+    Retorna a lista de reservas com pagamentos pendentes ou parciais para o painel de Gestão.
     """
     try:
         with connection.cursor() as cursor:

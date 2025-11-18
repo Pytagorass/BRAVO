@@ -1,8 +1,6 @@
 -- ===================================================================
 --  SCHEMA DO SISTEMA DE GERENCIAMENTO DO BARCO-HOTEL (Aguapeí)
 -- ===================================================================
---  Este script assume um banco vazio. Execute na ordem apresentada.
--- ===================================================================
 
 -- -------------------------------------------------------------------
 -- 1. TIPOS ENUMERADOS
@@ -110,17 +108,3 @@ CREATE INDEX idx_reserva_quarto_quarto ON reserva_quarto(fk_quarto);
 CREATE INDEX idx_reserva_quarto_periodo ON reserva_quarto(checkin, checkout);
 
 
--- -------------------------------------------------------------------
--- 5. USUÁRIO INICIAL (opcional)
--- -------------------------------------------------------------------
--- Substitua o hash abaixo por um gerado com bcrypt.hashpw().
--- Senha exemplo: 123456
-INSERT INTO usuario (nome_usuario, email_usuario, senha, tipo_usuario, ativo)
-VALUES (
-    'Administrador',
-    'admin@aguapei.local',
-    '$2b$12$SmgXR9BRHqd7yvpVU0S88edyD6y3XYPvOsP2JCHQSWAzM1cbZ4WwC',
-    'Gerente',
-    'Ativo'
-)
-ON CONFLICT (email_usuario) DO NOTHING;
