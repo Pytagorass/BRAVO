@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Container, Form, Button, Alert, Card } from 'react-bootstrap';
-// 🎓 Importamos a função 'login' do nosso api.js refatorado
 import { login } from '../services/api';
 import './Login.css';
 
@@ -13,7 +12,7 @@ function Login() {
     const navigate = useNavigate();
 
     // ==========================================================
-    // 🎓 handleSubmit REFATORADO (Alinhado com api.js e views.py)
+    // handleSubmit
     // ==========================================================
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -22,13 +21,9 @@ function Login() {
 
         try {
             // 1. CHAMA A API
-            // Graças ao interceptor do 'api.js', 'responseData'
-            // já será o objeto 'data' retornado pelo 'views.py'.
-            // responseData = { token: "...", usuario: { ... } }
             const responseData = await login(email, password);
 
             // 2. VERIFICA O SUCESSO
-            // (Não precisamos mais de 'response.data.token')
             if (responseData.token) {
                 
                 // 3. SALVA O TOKEN
@@ -45,27 +40,17 @@ function Login() {
             }
 
         } catch (err) {
-            // 6. 🎓 TRATAMENTO DE ERRO PADRONIZADO
-            // Graças ao interceptor, 'err' já é o nosso objeto JSON de erro
-            // err = { status: 'error', code: '...', message: '...' }
+            // 6. TRATAMENTO DE ERRO PADRONIZADO
             
             if (err.message) {
-                // Ex: "Credenciais inválidas" (Erro 401)
-                // Ex: "Erro interno: ..." (Erro 500)
                 setError(err.message);
             } else {
-                // Erro de rede (ex: servidor Django desligado)
-                // (O interceptor já deve ter mostrado um toast, mas temos um fallback)
                 setError('Não foi possível conectar ao servidor.');
             }
         } finally {
             setLoading(false);
         }
     };
-    // ==========================================================
-    // FIM DA REFATORAÇÃO
-    // ==========================================================
-
 
     return (
         <div className="login-background">
@@ -83,8 +68,6 @@ function Login() {
                         <p className="text-center text-muted mb-4">Grupo Pathfinder</p>
 
                         <Form onSubmit={handleSubmit}>
-                            
-                            {/* 🎓 Este Alert agora exibirá as mensagens corretas da API */}
                             {error && <Alert variant="danger">{error}</Alert>}
 
                             <Form.Group className="mb-3" controlId="formBasicEmail">

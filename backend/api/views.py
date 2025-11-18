@@ -529,7 +529,7 @@ def update_reserva_status_view(request, reserva_quarto_id):
 
 
 # -----------------------------------------------------------------
-# VIEW DE HSPEDES (CRUD)
+# VIEW DE HÓSPEDES (CRUD)
 # -----------------------------------------------------------------
 @csrf_exempt 
 @token_required
@@ -591,7 +591,7 @@ def hospedes_view(request):
             return error_response(str(e), 'SERVER_ERROR', 500)
 
 # -----------------------------------------------------------------
-# VIEW DE DETALHE DO HSPEDE
+# VIEW DE DETALHE DO HÓSPEDE
 # -----------------------------------------------------------------
 @csrf_exempt 
 @token_required
@@ -742,7 +742,7 @@ def usuario_perfil_view(request):
 
 
 # -----------------------------------------------------------------
-#  VIEW DE DETALHES DA RESERVA (Refatorada)
+#  VIEW DE DETALHES DA RESERVA
 # -----------------------------------------------------------------
 @csrf_exempt
 @token_required
@@ -810,10 +810,6 @@ def _get_reserva_detalhes_internal(cursor, reserva_quarto_id):
     
     detalhes['acompanhantes'] = acompanhantes
     return detalhes
-
-# =======================================================================
-# 4. VIEWS DE ENTIDADES (CRUDs)
-# =======================================================================
 
 # -----------------------------------------------------------------
 # VIEW DE QUARTOS (CRUD) (Protegida)
@@ -964,10 +960,6 @@ def quarto_detail_view(request, quarto_id):
 # =======================================================================
 # 5. VIEW DE BUSINESS INTELLIGENCE (BI)
 # =======================================================================
-
-# -----------------------------------------------------------------
-# VIEW DE GESTO (BI) (Protegida)
-# -----------------------------------------------------------------
 @csrf_exempt
 @token_required
 @require_http_methods(["GET"])

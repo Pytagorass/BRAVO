@@ -20,7 +20,7 @@ const QuartosPage = () => {
   const [quartoParaExcluir, setQuartoParaExcluir] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // 🔄 Carregar quartos conforme status
+  // Carregar quartos conforme status
   const carregarQuartos = useCallback(async () => {
     try {
       setLoading(true);
@@ -38,7 +38,7 @@ const QuartosPage = () => {
     carregarQuartos();
   }, [carregarQuartos]);
 
-  // 🧩 Modais e ações
+  // Modais e ações
   const handleShowNovoQuarto = () => {
     setQuartoSelecionado(null);
     setShowModal(true);
@@ -49,7 +49,7 @@ const QuartosPage = () => {
     setShowModal(true);
   };
 
-  // 💾 Atualizar lista após salvar
+  // Atualizar lista após salvar
   const handleSaveSuccess = (quartoSalvo) => {
     setShowModal(false);
 
@@ -70,7 +70,7 @@ const QuartosPage = () => {
     }
   };
 
-  // 🗑️ Excluir quarto
+  // Excluir quarto
   const handleShowExcluir = (quarto) => {
     setQuartoParaExcluir(quarto);
     setShowConfirmModal(true);
@@ -99,7 +99,7 @@ const QuartosPage = () => {
     }
   };
 
-  // 📋 Renderização da tabela
+  // Renderização da tabela
   const renderContent = () => {
     if (loading && quartos.length === 0) {
       return (

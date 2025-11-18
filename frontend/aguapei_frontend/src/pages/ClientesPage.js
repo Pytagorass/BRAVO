@@ -24,7 +24,7 @@ const ClientesPage = () => {
   const [clienteParaInativar, setClienteParaInativar] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // 🔄 Carregar clientes conforme o status atual (Ativo / Inativo)
+  // Carregar clientes conforme o status atual (Ativo / Inativo)
   const carregarClientes = useCallback(async () => {
     try {
       setLoading(true);
@@ -47,7 +47,7 @@ const ClientesPage = () => {
     setCurrentPage(1);
   }, [searchTerm, viewStatus]);
 
-  // 🧩 Ações de modal
+  // Ações de modal
   const handleShowNovoCliente = () => {
     setClienteSelecionado(null);
     setShowClienteModal(true);
@@ -69,7 +69,7 @@ const ClientesPage = () => {
     toast.success('Cliente salvo com sucesso!');
   };
 
-  // 🚫 Inativar cliente (soft delete)
+  // Inativar cliente
   const handleShowInativar = (cliente) => {
     setClienteParaInativar(cliente);
     setShowConfirmModal(true);
@@ -93,7 +93,7 @@ const ClientesPage = () => {
     }
   };
 
-  // ✅ Reativar cliente
+  // Reativar cliente
   const handleReativar = async (cliente) => {
     const toastId = toast.loading(`Reativando ${cliente.nome_hospede}...`);
     try {
@@ -146,7 +146,7 @@ const ClientesPage = () => {
     }
   };
 
-  // 📋 Conteúdo da tabela
+  // Conteúdo da tabela
   const renderContent = () => {
     if (loading && clientes.length === 0) {
       return (
