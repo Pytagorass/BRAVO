@@ -1,7 +1,7 @@
 body, html, #root {
-  height: 100vh;  /* Ocupa 100% da altura da tela */
-  width: 100vw;   /* Ocupa 100% da largura da tela */
-  overflow: hidden; /* 🎓 Impede a PÁGINA INTEIRA de rolar */
+  height: 100vh;  
+  width: 100vw;   
+  overflow: hidden; 
 }
 
 body {

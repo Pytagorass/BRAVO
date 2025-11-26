@@ -42,7 +42,9 @@ apiClient.interceptors.response.use(
   (error) => {
     if (error.response) {
       const payload = error.response.data;
-      if (error.response.status === 401 && error.config?.url !== '/login/') {
+      const isLoginRequest = error.config?.url === '/login/';
+
+      if (error.response.status === 401 && !isLoginRequest) {
         toast.error('Sua sessao expirou. Por favor, faca login novamente.');
         localStorage.removeItem('authToken');
         window.location.href = '/login';
@@ -50,7 +52,9 @@ apiClient.interceptors.response.use(
       }
 
       const apiError = payload?.error || {};
-      toast.error(apiError.message || payload?.message || 'Falha ao processar a requisicao.');
+      if (!isLoginRequest) {
+        toast.error(apiError.message || payload?.message || 'Falha ao processar a requisicao.');
+      }
       return Promise.reject(
         payload || {
           success: false,
@@ -63,7 +67,7 @@ apiClient.interceptors.response.use(
       toast.error('Nao foi possivel conectar ao servidor.');
       return Promise.reject({
         success: false,
-        error: { code: 'NETWORK_ERROR', message: 'Nao foi possivel conectar ao servidor.' },
+        error: { code: 'NETWORK_ERROR', message: 'Nao foi possivel1 conectar ao servidor.' },
       });
     }
 

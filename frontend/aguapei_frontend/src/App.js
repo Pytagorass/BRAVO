@@ -22,7 +22,7 @@ const ProtectedRoutes = () => {
 function App() {
   return (
     <BrowserRouter>
-    {/* 🎓 Container global para os TOASTS */}
+    {/*Container global para os TOASTS */}
         <ToastContainer
             position="top-right"
             autoClose={5000}

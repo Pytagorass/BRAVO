@@ -1153,51 +1153,6 @@ def get_indicadores_gestao(request):
             cursor.execute(sql_pagamentos, [data_inicio, data_fim])
             pagamentos_pendentes = dictfetchall(cursor)[0]
 
-            sql_diarias = """
-                SELECT
-                    h.pais_origem AS pais,
-                    COALESCE(SUM(
-                        GREATEST(
-                            EXTRACT(EPOCH FROM (
-                                LEAST(rq.checkout, %s::date + interval '1 day') -
-                                GREATEST(rq.checkin, %s::date)
-                            )),
-                            0
-                        )
-                    ) / 86400, 0) AS total_diarias
-                FROM reserva r
-                JOIN hospede h ON r.fk_hospede_titular = h.id_hospede
-                JOIN reserva_quarto rq ON rq.fk_reserva = r.id_reserva
-                WHERE
-                    r.status_reserva != 'Cancelada'
-                    AND (rq.checkin, rq.checkout) OVERLAPS (%s::date, %s::date + interval '1 day')
-                GROUP BY h.pais_origem
-                ORDER BY total_diarias DESC, h.pais_origem ASC
-                LIMIT 5;
-            """
-            cursor.execute(sql_diarias, [data_inicio, data_fim, data_inicio, data_fim])
-            diarias_por_pais = dictfetchall(cursor)
-
-            sql_lead_time = """
-                SELECT
-                    COALESCE(
-                        AVG(
-                            GREATEST(
-                                EXTRACT(EPOCH FROM (rq.checkin::timestamp - r.dt_criacao)),
-                                0
-                            )
-                        ) / 86400,
-                        0
-                    ) AS lead_time_medio
-                FROM reserva r
-                JOIN reserva_quarto rq ON rq.fk_reserva = r.id_reserva
-                WHERE
-                    rq.checkin BETWEEN %s AND %s
-                    AND r.status_reserva != 'Cancelada';
-            """
-            cursor.execute(sql_lead_time, [data_inicio, data_fim])
-            lead_time_medio = dictfetchall(cursor)[0].get('lead_time_medio', 0)
-
         response_data = {
             'kpis': kpi_data,
             'taxa_ocupacao': taxa_ocupacao,
@@ -1205,8 +1160,6 @@ def get_indicadores_gestao(request):
             'faturamento_por_tipo': faturamento_por_tipo,
             'reservas_por_status': reservas_por_status,
             'pagamentos_pendentes': pagamentos_pendentes,
-            'diarias_por_pais': diarias_por_pais,
-            'lead_time_medio': lead_time_medio,
             'ano_filtrado': ano_filtrar
         }
         return success_response(response_data)

@@ -42,11 +42,8 @@ function Login() {
         } catch (err) {
             // 6. TRATAMENTO DE ERRO PADRONIZADO
             
-            if (err.message) {
-                setError(err.message);
-            } else {
-                setError('Não foi possível conectar ao servidor.');
-            }
+            console.error('Erro ao efetuar login:', err);
+            setError('Usuário ou Senha inválidos. Tente novamente.');
         } finally {
             setLoading(false);
         }
