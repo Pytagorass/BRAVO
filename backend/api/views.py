@@ -20,6 +20,17 @@ from .auth_decorator import token_required
 # =======================================================================
 # 2. FUNÇÕES UTILITÁRIAS (Helpers)
 # =======================================================================
+
+# -----------------------------------------------------------------------
+# Função utilitária: dictfetchall
+# Propósito: converter os resultados em formato lista de tuplas do cursor
+#            em uma lista de dicionários, mantendo o nome da coluna como
+#            chave. Isso simplifica a serialização em JSON.
+# Parâmetros:
+#   cursor -> instância aberta e já executada de um SELECT.
+# Retorno:
+#   Lista de dicionários compatível com as respostas utilizadas pelo front.
+# Observação: evita repetição desse loop em cada view que consulta o banco.
 def dictfetchall(cursor):
     """
     Converte o resultado de cursor.fetchall() em uma lista de dicionários.
@@ -31,8 +42,21 @@ def dictfetchall(cursor):
     ]
 
 #  =======================================================================
-#  2B. HELPERS DE RESPOSTA PADRONIZADA (Sua Solicitação)
+#  2B. HELPERS DE RESPOSTA PADRONIZADA
 #  =======================================================================
+
+# -----------------------------------------------------------------------
+# Função utilitária: success_response
+# Propósito: centralizar o formato de sucesso retornado ao React, evitando
+#            divergências de contrato entre endpoints.
+# Parâmetros:
+#   data -> payload que será entregue à interface.
+#   code -> string simbólica usada pelo front para logs/telemetria.
+#   status_code -> HTTP status enviado ao cliente.
+# Retorno:
+#   JsonResponse com {"success": True, "data": ...}.
+# Interação com o front-end: o axios interceptor confia nesse formato para
+# definir toasts e popular componentes.
 def success_response(data=None, code="OK", status_code=200):
     """
     Gera uma resposta JSON padronizada para SUCESSO seguindo o contrato oficial.
@@ -43,6 +67,17 @@ def success_response(data=None, code="OK", status_code=200):
     }
     return JsonResponse(response, status=status_code)
 
+# -----------------------------------------------------------------------
+# Função utilitária: error_response
+# Propósito: padronizar a estrutura de erro, garantindo que o front consiga
+# extrair `error.code` e `error.message`.
+# Parâmetros:
+#   message -> descrição amigável.
+#   code -> código de erro categórico usado pelo front.
+#   status_code -> status HTTP apropriado.
+#   details -> payload opcional com dados extras (ex.: conflito de agenda).
+# Retorno:
+#   JsonResponse com {"success": False, "error": {...}}.
 def error_response(message, code="ERRO_INTERNO", status_code=400, details=None):
     """
     Gera uma resposta JSON padronizada para ERRO seguindo o contrato oficial.
@@ -67,8 +102,18 @@ def error_response(message, code="ERRO_INTERNO", status_code=400, details=None):
 # =======================================================================
 
 # -----------------------------------------------------------------
-# VIEW DE LOGIN (protegida)
-# -----------------------------------------------------------------
+# Função: login_view
+# Propósito: autenticar usuários administrativos e gerar JWT compatível
+#            com o interceptor do front-end.
+# Métodos aceitos: POST.
+# Fluxo:
+#   1. Lê e valida email/senha do body.
+#   2. Consulta tabela `usuario`.
+#   3. Compara hash com bcrypt.
+#   4. Gera token com dados utilizados pela Sidebar/rotas protegidas.
+# Integração front-end: Login.js consome `/api/login/` e armazena token +
+# informações do usuário no localStorage.
+# Impacto no banco: SELECT simples em `usuario`, sem mutações.
 @csrf_exempt
 @require_http_methods(["POST"])
 def login_view(request):
@@ -78,6 +123,7 @@ def login_view(request):
         senha_recebida = data.get('senha')
 
         if not email or not senha_recebida:
+            # Validação básica para evitar hits desnecessários ao banco.
             return error_response('Email e senha são obrigatórios', 'VALIDATION_ERROR', 400)
 
         sql_query = """
@@ -96,7 +142,7 @@ def login_view(request):
             usuario = user_data[0]
             senha_hash_bd = usuario['senha'].encode('utf-8')
             
-            #  VULNERABILIDADE CORRIGIDA: Comparação de hash
+            # Verificação da senha usando bcrypt
             if not bcrypt.checkpw(senha_recebida.encode('utf-8'), senha_hash_bd):
                 return error_response('Credenciais inválidas', 'AUTH_FAILED', 401)
 
@@ -127,8 +173,14 @@ def login_view(request):
         return error_response(f'Erro interno: {str(e)}', 'SERVER_ERROR', 500)
 
 # -----------------------------------------------------------------
-# VIEW DA AGENDA (Gantt) (Protegida)
-# -----------------------------------------------------------------
+# Função: get_agenda_reservas
+# Propósito: entregar o dataset utilizado pelo componente de Gantt no
+# front-end (AgendaDashboard). Carrega reservas e quarto associado.
+# Métodos aceitos: GET.
+# Integração: `fetchAgendaReservas` em `services/api.js`.
+# Observações:
+#   - EndPoint protegido via JWT.
+#   - Apenas realiza leitura (sem transação).
 @csrf_exempt 
 @token_required 
 @require_http_methods(["GET"])
@@ -168,8 +220,13 @@ def get_agenda_reservas(request):
     
 
 # -----------------------------------------------------------------
-# VIEW DE CRIAO DE RESERVA (Protegida)
-# -----------------------------------------------------------------
+# Função: reservas_view
+# Propósito: criar novas reservas para o Gantt, garantindo consistência
+#            das datas, quartos e hóspedes relacionados.
+# Métodos aceitos: POST.
+# Integração front-end: `createReserva` (NovaReservaModal).
+# Impacto no banco: abre transação e grava em `reserva`, `reserva_quarto`
+# e `reserva_hospede`, além de realizar locks em `quarto`.
 @csrf_exempt
 @token_required
 @transaction.atomic  #  Garante que ou tudo (5 inserts) ou nada acontece
@@ -178,21 +235,19 @@ def reservas_view(request):
     """
     View para o POST: Cria uma nova reserva (transacional).
 
-    Melhorias:
-    1. SQL de overbooking retorna detalhes do conflito.
-    2. Respostas padronizadas com success/error.
-    3. Validacoes de datas, status do quarto e valor total recalculado.
-    """
+    Espera o seguinte payload JSON:"""
     try:
-        data = json.loads(request.body)
+        data = json.loads(request.body)  # Payload enviado pelo React.
 
         try:
+            # Titular obrigatório: conecta reserva ao responsável financeiro.
             titular_id = int(data.get('fk_hospede_id_hospede'))
         except (TypeError, ValueError):
             return error_response('Selecione um titular valido para a reserva.', 'TITULAR_OBRIGATORIO', 400)
 
         quartos_payload = data.get('quartos') or []
         try:
+            # Modal sempre envia array; usamos o primeiro quarto selecionado.
             quarto_id = int(quartos_payload[0])
         except (IndexError, TypeError, ValueError):
             return error_response('Selecione um quarto valido.', 'QUARTO_INDISPONIVEL', 400)
@@ -200,6 +255,7 @@ def reservas_view(request):
         checkin = data.get('checkin')
         checkout = data.get('checkout')
         if not checkin or not checkout:
+            # Sem datas não há como calcular diária nem verificar overbooking.
             return error_response('Datas de check-in e check-out sao obrigatorias.', 'DATAS_INVALIDAS', 400)
 
         try:
@@ -216,11 +272,13 @@ def reservas_view(request):
         fk_usuario_logado = request.user_token_payload.get('id_usuario')
 
         try:
+            # IDs dos acompanhantes são validados para evitar strings inválidas.
             acompanhante_ids = [int(ac_id) for ac_id in data.get('acompanhantes', []) if ac_id]
         except (TypeError, ValueError):
             return error_response('Lista de acompanhantes invalida.', 'VALIDATION_ERROR', 400)
 
         with connection.cursor() as cursor:
+            # Lock pessimista no quarto garante consistência mesmo com múltiplos POSTs.
             cursor.execute("SELECT status_quarto, valor_diaria FROM quarto WHERE id_quarto = %s FOR UPDATE", [quarto_id])
             quarto_info = cursor.fetchone()
             if not quarto_info:
@@ -230,6 +288,7 @@ def reservas_view(request):
             if status_quarto == 'Manutenção':
                 return error_response('Quarto em manutencao nao pode ser reservado.', 'QUARTO_MANUTENCAO', 409)
 
+            # Repete a checagem de overbooking para impedir conflitos futuros.
             sql_check_overbooking = """
                 SELECT
                     rq.checkin,
@@ -253,6 +312,8 @@ def reservas_view(request):
                     conflito[0]
                 )
 
+            # Número de diárias usado para calcular valor_total no back-end,
+            # evitando manipulação maliciosa via front.
             diarias = (checkout_date - checkin_date).days
             valor_total = valor_diaria * diarias
 
@@ -329,15 +390,20 @@ def reservas_view(request):
         return error_response(str(e), 'ERRO_INTERNO', 500)
 
 # -----------------------------------------------------------------
-# VIEW: EDITAR RESERVA 
-# -----------------------------------------------------------------
+# Função: edit_reserva_view
+# Propósito: atualizar reservas existentes (datas, quarto, hóspedes,
+#            status de pagamento) diretamente pelo modal de edição.
+# Métodos aceitos: PUT.
+# Integração front-end: `updateReservaCompleta`.
+# Impacto no banco: atualiza as tabelas `reserva`, `reserva_quarto` e
+# `reserva_hospede` dentro de uma mesma transação.
 @csrf_exempt
 @token_required
 @transaction.atomic
 @require_http_methods(["PUT"])
 def edit_reserva_view(request, reserva_quarto_id):
     try:
-        data = json.loads(request.body)
+        data = json.loads(request.body)  # Payload enviado pelo modal de edição.
 
         try:
             titular_id = int(data.get('fk_hospede_id_hospede'))
@@ -369,11 +435,13 @@ def edit_reserva_view(request, reserva_quarto_id):
         fk_usuario_logado = request.user_token_payload.get('id_usuario')
 
         try:
+            # IDs chegam como string do select múltiplo; convertemos para int.
             acompanhante_ids = [int(ac_id) for ac_id in data.get('acompanhantes', []) if ac_id]
         except (TypeError, ValueError):
             return error_response('Lista de acompanhantes invalida.', 'VALIDATION_ERROR', 400)
 
         with connection.cursor() as cursor:
+            # Busca dados atuais da reserva e bloqueia a linha para edição segura.
             cursor.execute(
                 """
                 SELECT rq.fk_reserva, rq.fk_quarto, rq.checkin, rq.checkout, r.status_reserva
@@ -398,6 +466,7 @@ def edit_reserva_view(request, reserva_quarto_id):
                         409
                     )
 
+            # Garante que o novo quarto existe e pode ser reutilizado.
             cursor.execute("SELECT status_quarto, valor_diaria FROM quarto WHERE id_quarto = %s", [quarto_id])
             quarto_info = cursor.fetchone()
             if not quarto_info:
@@ -434,6 +503,7 @@ def edit_reserva_view(request, reserva_quarto_id):
             diarias = (checkout_date - checkin_date).days
             valor_total = valor_diaria * diarias
 
+            # Atualiza a reserva principal com valores recalculados.
             sql_update_reserva = """
                 UPDATE reserva
                 SET 
@@ -449,6 +519,7 @@ def edit_reserva_view(request, reserva_quarto_id):
                 [valor_total, observacao, fk_usuario_logado, status_pagamento, titular_id, id_reserva_principal]
             )
 
+            # Atualiza o relacionamento com o quarto e datas efetivas.
             sql_update_rq = """
                 UPDATE reserva_quarto
                 SET
@@ -460,6 +531,7 @@ def edit_reserva_view(request, reserva_quarto_id):
 
             cursor.execute("DELETE FROM reserva_hospede WHERE fk_reserva = %s", [id_reserva_principal])
             if acompanhante_ids:
+                # Reinsere acompanhantes conforme seleção atual do modal.
                 sql_acompanhante = "INSERT INTO reserva_hospede (fk_reserva, fk_hospede) VALUES (%s, %s);"
                 params_acompanhantes = [(id_reserva_principal, ac_id) for ac_id in acompanhante_ids]
                 cursor.executemany(sql_acompanhante, params_acompanhantes)
@@ -474,8 +546,13 @@ def edit_reserva_view(request, reserva_quarto_id):
         return error_response(str(e), 'ERRO_INTERNO', 500)
 
 # -----------------------------------------------------------------
-# VIEW: ATUALIZAR STATUS
-# -----------------------------------------------------------------
+# Função: update_reserva_status_view
+# Propósito: endpoint rápido para ações de "Marcar como Pago" ou "Cancelar"
+# diretamente no cartão da agenda ou painel.
+# Métodos aceitos: PATCH.
+# Fluxo: lê quais status foram enviados, bloqueia a linha principal de
+# `reserva` e atualiza apenas os campos necessários.
+# Integração front-end: `updateReservaStatus`.
 @csrf_exempt
 @token_required
 @transaction.atomic
@@ -491,7 +568,7 @@ def update_reserva_status_view(request, reserva_quarto_id):
 
         with connection.cursor() as cursor:
             
-            # 2. Busca o ID da reserva principal
+            # Busca o ID da reserva principal para aplicar o UPDATE correto.
             cursor.execute("SELECT fk_reserva FROM reserva_quarto WHERE id_reserva_quarto = %s", [reserva_quarto_id])
             reserva_link = cursor.fetchone()
             if not reserva_link:
@@ -502,7 +579,7 @@ def update_reserva_status_view(request, reserva_quarto_id):
             # Trava a linha da 'reserva' principal.
             cursor.execute("SELECT 1 FROM reserva WHERE id_reserva = %s FOR UPDATE", [id_reserva_principal])
 
-            # 3. Monta a query de atualização dinamicamente
+            # Monta o SET dinamicamente para atualizar somente campos enviados.
             campos_para_atualizar = []
             params = []
             if novo_status_reserva:
@@ -529,8 +606,11 @@ def update_reserva_status_view(request, reserva_quarto_id):
 
 
 # -----------------------------------------------------------------
-# VIEW DE HÓSPEDES (CRUD)
-# -----------------------------------------------------------------
+# Função: hospedes_view
+# Propósito: CRUD simplificado para hóspedes utilizado nas telas de
+# clientes e no modal de reserva.
+# Métodos aceitos: GET (listagem filtrada por status) e POST (criação).
+# Integração front-end: `fetchHospedes`, `createHospede`.
 @csrf_exempt 
 @token_required
 @require_http_methods(["GET", "POST"])
@@ -591,8 +671,11 @@ def hospedes_view(request):
             return error_response(str(e), 'SERVER_ERROR', 500)
 
 # -----------------------------------------------------------------
-# VIEW DE DETALHE DO HÓSPEDE
-# -----------------------------------------------------------------
+# Função: hospede_detail_view
+# Propósito: operações de atualização, inativação ou reativação de um
+# hóspede específico.
+# Métodos aceitos: PUT (update), DELETE (inativar), PATCH (alterar status).
+# Integração front-end: `updateHospede`, `deleteHospede`, `updateHospedeStatus`.
 @csrf_exempt 
 @token_required
 @require_http_methods(["PUT", "DELETE", "PATCH"]) 
@@ -677,8 +760,11 @@ def hospede_detail_view(request, hospede_id):
             return error_response(str(e), 'SERVER_ERROR', 500)
 
 # -----------------------------------------------------------------
-#  VIEW DE PERFIL DO USURIO
-# -----------------------------------------------------------------
+# Função: usuario_perfil_view
+# Propósito: recuperar e atualizar dados do usuário autenticado exibidos
+# no modal de perfil do front-end.
+# Métodos aceitos: GET para leitura e PUT para edição.
+# Integração: `fetchUsuarioPerfil` e `updateUsuarioPerfil`.
 @csrf_exempt 
 @token_required
 @require_http_methods(["GET", "PUT"])
@@ -742,8 +828,11 @@ def usuario_perfil_view(request):
 
 
 # -----------------------------------------------------------------
-#  VIEW DE DETALHES DA RESERVA
-# -----------------------------------------------------------------
+# Função: get_reserva_detalhes
+# Propósito: fornecer os dados completos consumidos pelo modal
+# `ReservaDetalhesModal`, incluindo acompanhantes e histórico.
+# Método aceito: GET.
+# Impacto: apenas leitura com JOINs.
 @csrf_exempt
 @token_required
 @require_http_methods(["GET"])
@@ -763,6 +852,14 @@ def get_reserva_detalhes(request, reserva_quarto_id):
 # -----------------------------------------------------------------
 #  FUNO INTERNA (Helper) para buscar detalhes da reserva
 # -----------------------------------------------------------------
+# -----------------------------------------------------------------
+# Função auxiliar: _get_reserva_detalhes_internal
+# Propósito: consulta reutilizada por múltiplas views para montar o shape
+# retornado ao front (detalhes da reserva).
+# Parâmetros:
+#   cursor -> conexão já aberta/reutilizada.
+#   reserva_quarto_id -> identificador do bloco no Gantt.
+# Retorno: dicionário pronto para serialização.
 def _get_reserva_detalhes_internal(cursor, reserva_quarto_id):
 
     detalhes = {}
@@ -812,8 +909,11 @@ def _get_reserva_detalhes_internal(cursor, reserva_quarto_id):
     return detalhes
 
 # -----------------------------------------------------------------
-# VIEW DE QUARTOS (CRUD) (Protegida)
-# -----------------------------------------------------------------
+# Função: quartos_view
+# Propósito: consultar ou cadastrar quartos, utilizados tanto no módulo
+# administrativo quanto no modal de reserva (para listar disponíveis).
+# Métodos aceitos: GET e POST.
+# Integração front-end: `fetchQuartos`, `createQuarto`.
 @csrf_exempt 
 @token_required
 @require_http_methods(["GET", "POST"])
@@ -866,8 +966,11 @@ def quartos_view(request):
             return error_response(str(e), 'SERVER_ERROR', 500)
 
 # -----------------------------------------------------------------
-# VIEW DE DETALHE DO QUARTO (GET/PUT/DELETE)
-# -----------------------------------------------------------------
+# Função: quarto_detail_view
+# Propósito: operações de leitura/atualização/remoção para um quarto
+# específico selecionado na tela de manutenção.
+# Métodos aceitos: GET, PUT e DELETE.
+# Integração: `fetchQuartoDetalhes`, `updateQuarto`, `deleteQuarto`.
 @csrf_exempt 
 @token_required
 @require_http_methods(["GET", "PUT", "DELETE"])
@@ -960,10 +1063,18 @@ def quarto_detail_view(request, quarto_id):
 # =======================================================================
 # 5. VIEW DE BUSINESS INTELLIGENCE (BI)
 # =======================================================================
+
+# -----------------------------------------------------------------
+# Função: get_indicadores_gestao
+# Propósito: alimentar o dashboard de gestão com KPIs de faturamento,
+# ocupação, composição de reservas e demais gráficos avançados.
+# Método aceito: GET.
+# Integração front-end: `fetchIndicadoresGestao`.
+# Observação: executa várias queries complexas (CTEs) e, por isso, faz
+# tratamento cuidadoso de datas/ano filtrado.
 @csrf_exempt
 @token_required
 @require_http_methods(["GET"])
-
 def get_indicadores_gestao(request):
 
     try:
@@ -1167,7 +1278,12 @@ def get_indicadores_gestao(request):
     except Exception as e:
         return error_response(str(e), 'SERVER_ERROR', 500)
 
-
+# -----------------------------------------------------------------
+# Função: get_reservas_pendentes
+# Propósito: fornecer para o painel de gestão uma lista das reservas com
+# pagamentos pendentes ou parciais, permitindo ações financeiras.
+# Método aceito: GET.
+# Integração: `fetchReservasPendentesGestao`.
 @csrf_exempt
 @token_required
 @require_http_methods(["GET"])

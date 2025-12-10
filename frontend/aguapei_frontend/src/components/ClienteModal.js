@@ -1,9 +1,95 @@
+/**
+ * ClienteModal.js
+ * ----------------
+ * Formulário reutilizado para criar ou editar hóspedes (clientes).
+ * Utilizado tanto na página de Clientes quanto pelo modal de reservas.
+ * O componente aplica máscaras básicas (telefone/CPF/passaporte) e envia
+ * os dados para os endpoints `createHospede` / `updateHospede`.
+ */
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Form, Alert, Col, Row, Spinner } from 'react-bootstrap';
 import { createHospede, updateHospede } from '../services/api';
 import { toast } from 'react-toastify';
 
+// ---------------------------
+// Helpers de formatação/máscara
+// ---------------------------
+
+// Remove caracteres não numéricos, evitando persistir dados inválidos no backend.
+const digitsOnly = (value = '') => value.replace(/\D/g, '');
+const MAX_PHONE_LENGTH = 15;
+
+// Formata CPF conforme padrão brasileiro sem alterar o valor bruto enviado ao servidor.
+const formatCpf = (value = '') => {
+    const digits = digitsOnly(value).slice(0, 11);
+    if (!digits) return '';
+    let formatted = digits;
+    formatted = formatted.replace(/(\d{3})(\d)/, '$1.$2');
+    formatted = formatted.replace(/(\d{3})(\d)/, '$1.$2');
+    formatted = formatted.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+    return formatted;
+};
+
+const formatTelefone = (value = '', pais = 'Brasil') => {
+    const digits = digitsOnly(value);
+    if (!digits) return '';
+
+    if (pais === 'Brasil') {
+        let local = digits;
+        if (local.startsWith('55') && local.length > 11) {
+            local = local.slice(2);
+        }
+        const ddi = '+55';
+        const ddd = local.slice(0, 2);
+        const parte1 = local.slice(2, 7);
+        const parte2 = local.slice(7, 11);
+
+        let formatted = ddi;
+        if (ddd) {
+            formatted += ` (${ddd}`;
+            if (ddd.length === 2) {
+                formatted += ')';
+            }
+        }
+        if (parte1) {
+            formatted += ` ${parte1}`;
+        }
+        if (parte2) {
+            formatted += `-${parte2}`;
+        }
+        return formatted.trim();
+    }
+
+    return `+${digits}`;
+};
+
+// Normaliza o passaporte para maiúsculas no limite de 20 caracteres.
+const sanitizePassport = (value = '') =>
+    value.toUpperCase().replace(/\s+/g, '').slice(0, 20);
+
+/**
+ * Modal de cadastro/edição de hóspedes.
+ *
+ * Objetivo:
+ *   - Centralizar a criação e edição de registros da tabela `hospede`.
+ * Parâmetros:
+ *   - show: controla exibição.
+ *   - handleClose: finaliza o modal e reseta estados externos.
+ *   - onSaveSuccess: notifica o componente pai com o objeto retornado do backend.
+ *   - cliente: quando definido, carrega o formulário para edição.
+ * Fluxo:
+ *   1. Carrega dados existentes (se houver) e aplica máscaras.
+ *   2. Monta payload compatível com `createHospede`/`updateHospede`.
+ *   3. Exibe toasts de sucesso ou mensagens de erro retornadas pela API.
+ * Impacto no banco:
+ *   - Dispara INSERT ou UPDATE na tabela `hospede` via endpoints Django.
+ */
 function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
+    /**
+     * Retorna o shape padrão do formulário.
+     * Não recebe parâmetros e devolve o objeto base para o hook `useState`.
+     * Mantém o componente consistente entre criação e edição.
+     */
     const getInitialState = () => ({
         nome_hospede: '',
         telefone: '',
@@ -21,14 +107,16 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
     const isBrasil = formData.pais_origem === 'Brasil';
 
     useEffect(() => {
+        // Ao abrir o modal, sincroniza o formulário com os dados atuais do hóspede;
+        // se não houver hóspede selecionado, restaura o estado inicial.
         if (isEditMode && cliente) {
             setFormData({
                 nome_hospede: cliente.nome_hospede || '',
-                telefone: cliente.telefone || '',
+                telefone: digitsOnly(cliente.telefone || ''),
                 email_hospede: cliente.email_hospede || '',
                 pais_origem: cliente.pais_origem || 'Brasil',
-                passaporte: cliente.passaporte || '',
-                cpf: cliente.cpf || ''
+                passaporte: sanitizePassport(cliente.passaporte || ''),
+                cpf: digitsOnly(cliente.cpf || '')
             });
         } else {
             setFormData(getInitialState());
@@ -36,13 +124,27 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
         setError(null);
     }, [cliente, isEditMode, show]);
 
-    // 🎓 3. HandleChange APRIMORADO
-    //    Limpa o campo de documento oposto ao mudar o país
-    //    para evitar enviar (ex:) CPF para um 'pais_origem' != 'Brasil'
+    /**
+     * Atualiza o estado do formulário garantindo que os campos sigam
+     * as regras de validação do backend:
+     *  - Telefones e CPFs contêm somente dígitos.
+     *  - O documento incompatível com o país selecionado é limpo.
+     * Não retorna valores; apenas atualiza `formData`.
+     */
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => {
-            const newState = { ...prev, [name]: value };
+            const newState = { ...prev };
+
+            if (name === 'telefone') {
+                newState.telefone = digitsOnly(value).slice(0, MAX_PHONE_LENGTH);
+            } else if (name === 'cpf') {
+                newState.cpf = digitsOnly(value).slice(0, 11);
+            } else if (name === 'passaporte') {
+                newState.passaporte = sanitizePassport(value);
+            } else {
+                newState[name] = value;
+            }
 
             // Lógica de limpeza (baseada no protótipo e na validação do backend)
             if (name === 'pais_origem') {
@@ -56,20 +158,44 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
         });
     };
 
-    // 🎓 4. HandleSubmit REFATORADO
+    //  4. HandleSubmit
+    /**
+     * Submit do formulário.
+     * Fluxo:
+     *  1. Normaliza telefone/CPF/passaporte (conforme país).
+     *  2. Dispara `updateHospede` ou `createHospede`.
+     *  3. Em caso de sucesso, fecha o modal e atualiza lista via `onSaveSuccess`.
+     *  4. Exibe mensagens de erro retornadas pelo backend.
+     */
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSaving(true);
         setError(null);
 
         try {
+            const payload = {
+                ...formData,
+                telefone: formData.telefone || '',
+                cpf: formData.cpf || '',
+                passaporte: formData.passaporte || ''
+            };
+
+            if (formData.pais_origem === 'Brasil') {
+                payload.passaporte = '';
+                if (payload.telefone && !payload.telefone.startsWith('55')) {
+                    payload.telefone = `55${payload.telefone}`;
+                }
+            } else {
+                payload.cpf = '';
+            }
+
             let savedCliente;
 
             if (isEditMode) {
-                savedCliente = await updateHospede(cliente.id_hospede, formData);
+                savedCliente = await updateHospede(cliente.id_hospede, payload);
                 toast.success('Cliente atualizado com sucesso!');
             } else {
-                savedCliente = await createHospede(formData);
+                savedCliente = await createHospede(payload);
                 toast.success('Novo cliente salvo com sucesso!');
             }
 
@@ -102,7 +228,7 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
             <Form onSubmit={handleSubmit}>
                 <Modal.Body>
 
-                    {/* 🎓 7. O Alert Inline agora exibe a 'message' da nossa API */}
+                    {/*  7. O Alert Inline exibe a 'message' da API */}
                     {error && <Alert variant="danger">{error}</Alert>}
 
                     {/* Linha 1: Nome */}
@@ -117,7 +243,24 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
                         />
                     </Form.Group>
 
-                    {/* Linha 2: Telefone e E-mail */}
+                    {/* Linha 2: País (com lógica de seleção) */}
+                    <Form.Group className="mb-3" controlId="pais_origem">
+                        <Form.Label>País</Form.Label>
+                        <Form.Select //  <Form.Select> é a tag correta no Bootstrap 5
+                            name="pais_origem"
+                            value={formData.pais_origem}
+                            onChange={handleChange}
+                        >
+                            <option value="Brasil">Brasil</option>
+                            <option value="Argentina">Argentina</option>
+                            <option value="Estados Unidos">Estados Unidos</option>
+                            <option value="Itália">Itália</option>
+                            <option value="Alemanha">Alemanha</option>
+                            <option value="Outro">Outro</option>
+                        </Form.Select>
+                    </Form.Group>
+
+                    {/* Linha 3: Telefone e E-mail */}
                     <Row>
                         <Col md={6}>
                             <Form.Group className="mb-3" controlId="telefone">
@@ -125,8 +268,9 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
                                 <Form.Control
                                     type="text"
                                     name="telefone"
-                                    value={formData.telefone}
+                                    value={formatTelefone(formData.telefone, formData.pais_origem)}
                                     onChange={handleChange}
+                                    inputMode="tel"
                                 />
                             </Form.Group>
                         </Col>
@@ -145,23 +289,6 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
                         </Col>
                     </Row>
 
-                    {/* Linha 3: País (com lógica de seleção) */}
-                    <Form.Group className="mb-3" controlId="pais_origem">
-                        <Form.Label>País</Form.Label>
-                        <Form.Select // 🎓 <Form.Select> é a tag correta no Bootstrap 5
-                            name="pais_origem"
-                            value={formData.pais_origem}
-                            onChange={handleChange}
-                        >
-                            <option value="Brasil">Brasil</option>
-                            <option value="Argentina">Argentina</option>
-                            <option value="Estados Unidos">Estados Unidos</option>
-                            <option value="Itália">Itália</option>
-                            <option value="Alemanha">Alemanha</option>
-                            <option value="Outro">Outro</option>
-                        </Form.Select>
-                    </Form.Group>
-
                     {/* Linha 4: CPF e Passaporte (lógica condicional mantida) */}
                     <Row>
                         <Col md={6}>
@@ -170,7 +297,7 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
                                 <Form.Control
                                     type="text"
                                     name="cpf"
-                                    value={formData.cpf}
+                                    value={isBrasil ? formatCpf(formData.cpf) : formData.cpf}
                                     onChange={handleChange}
                                     required={isBrasil}
                                     disabled={!isBrasil}

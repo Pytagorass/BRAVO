@@ -1,3 +1,10 @@
+/**
+ * AgendaDashboard.js
+ * ------------------
+ * Página principal de gestão de reservas. Lida com o carregamento da
+ * timeline (quartos/reservas), controle das janelas de tempo e abertura
+ * dos modais de criação/edição e detalhes.
+ */
 import React, { useState, useEffect, useCallback } from 'react';
 import { fetchAgendaReservas, fetchQuartos } from '../services/api';
 import GanttChart from '../components/GanttChart';
@@ -11,6 +18,17 @@ import { HelpCircle } from 'react-feather';
 
 moment.locale('pt-br');
 
+/**
+ * Controle principal da Agenda. Mantém os estados relacionados ao Gantt,
+ * incluindo dados das reservas/quartos e visibilidade dos modais auxiliares.
+ */
+/**
+ * AgendaDashboard
+ * ---------------
+ * Página que controla a visualização da agenda (Gantt) e os modais relacionados.
+ * Impacta o backend ao chamar `fetchQuartos` e `fetchAgendaReservas`; demais ações
+ * são manipulações locais de estado + acionamento dos modais.
+ */
 const AgendaDashboard = () => {
     const [quartos, setQuartos] = useState([]);
     const [reservas, setReservas] = useState([]);
@@ -24,6 +42,10 @@ const AgendaDashboard = () => {
     const [reservaParaEditar, setReservaParaEditar] = useState(null);
     const [showLegenda, setShowLegenda] = useState(false);
 
+    /**
+     * Busca os dados necessários para montar o Gantt (quartos + reservas) em paralelo.
+     * Em caso de erro, atualiza o alerta exibido na interface. Não retorna valores.
+     */
     const carregarDadosGantt = useCallback(async () => {
         try {
             setLoading(true);
@@ -50,11 +72,21 @@ const AgendaDashboard = () => {
         carregarDadosGantt();
     }, [carregarDadosGantt]);
 
+    /**
+     * Atualiza as janelas visíveis no timeline conforme o usuário navega.
+     *
+     * @param {number} start - timestamp inicial em milissegundos.
+     * @param {number} end - timestamp final em milissegundos.
+     */
     const handleTimeChange = (start, end) => {
         setVisibleTimeStart(start);
         setVisibleTimeEnd(end);
     };
 
+    /**
+     * Abre o modal de criação de reserva.
+     * Reseta qualquer seleção anterior para garantir que o formulário esteja limpo.
+     */
     const handleAbrirModalCriacao = () => {
         setSelectedReservaId(null);
         setReservaParaEditar(null);
@@ -62,6 +94,10 @@ const AgendaDashboard = () => {
         setShowReservaModal(true);
     };
 
+    /**
+     * Handler do clique em um item do Gantt.
+     * Recebe `itemId` (id_reserva_quarto) e abre o modal de detalhes.
+     */
     const handleItemClick = (itemId) => {
         if (!itemId) return;
         setReservaParaEditar(null);
@@ -70,6 +106,10 @@ const AgendaDashboard = () => {
         setShowDetalhesModal(true);
     };
 
+    /**
+     * Abre o modal de edição a partir do modal de detalhes.
+     * Mantém o objeto completo da reserva para pré-preencher o formulário.
+     */
     const handleAbrirModalEdicao = (reserva) => {
         if (!reserva) return;
         setSelectedReservaId(null);
@@ -78,16 +118,24 @@ const AgendaDashboard = () => {
         setShowReservaModal(true);
     };
 
+    // Fecha o modal de nova reserva e limpa a reserva em edição, se houver.
     const handleCloseNovaReservaModal = () => {
         setShowReservaModal(false);
         setReservaParaEditar(null);
     };
 
+    // Fecha o modal de detalhes e reseta o id selecionado.
     const handleCloseDetalhesModal = () => {
         setShowDetalhesModal(false);
         setSelectedReservaId(null);
     };
 
+    /**
+     * Callback chamado após criar/editar uma reserva.
+     * Atualiza o estado local para refletir o resultado retornado pelo backend.
+     *
+     * @param {object} reservaAtualizadaObj - reserva retornada pela API após a operação.
+     */
     const handleReservaUpdateSuccess = (reservaAtualizadaObj) => {
         const reservaExiste = reservas.some(
             (r) => r.id_reserva_quarto === reservaAtualizadaObj.id_reserva_quarto
@@ -113,6 +161,10 @@ const AgendaDashboard = () => {
 
 
 
+    /**
+     * Responsável por renderizar o conteúdo (loading, erro, Gantt + legenda).
+     * Não realiza chamadas ao backend; usa apenas os estados já carregados.
+     */
     const renderContent = () => {
         if (loading) {
             return (

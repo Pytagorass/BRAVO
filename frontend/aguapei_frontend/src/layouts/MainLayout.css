@@ -1,3 +1,4 @@
+/* Layout global das páginas autenticadas (Sidebar fixa + conteúdo scrollable). */
 .main-layout {
     display: flex;
     height: 100vh;

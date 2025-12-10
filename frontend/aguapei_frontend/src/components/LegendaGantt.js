@@ -1,7 +1,13 @@
+/**
+ * LegendaGantt.js
+ * ---------------
+ * Componentiza a legenda exibida sobre o gantt da Agenda. Reúne as cores
+ * e ícones aplicados a cada status, ajudando o usuário a interpretar
+ * rapidamente o que está sendo renderizado no calendário.
+ */
 import React from 'react';
-// Importa os ícones que você já usa no Gantt
 import { DollarSign, Clock, XCircle, AlertCircle } from 'react-feather';
-import './LegendaGantt.css'; // Vamos criar este arquivo de CSS
+import './LegendaGantt.css';
 
 const LegendaGantt = () => {
     return (

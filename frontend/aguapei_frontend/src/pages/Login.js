@@ -1,3 +1,9 @@
+/**
+ * Login.js
+ * --------
+ * Tela pública para autenticação. Ao receber o token, armazena
+ * credenciais no localStorage e redireciona o usuário para a Agenda.
+ */
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Container, Form, Button, Alert, Card } from 'react-bootstrap';
@@ -54,15 +60,15 @@ function Login() {
             <Container className="d-flex justify-content-center align-items-center vh-100">
                 <Card className="login-card p-4 shadow-sm">
                     <Card.Body className="text-center">
-                        <h3 className="text-center fw-bold" style={{ color: '#26522c' }}>
-                            Aguapé
-                        </h3>
                         <img
                             src='/iconeAguape.ico'
                             alt='Logo Aguapé'
                             className="login-logo"
                         />
-                        <p className="text-center text-muted mb-4">Grupo Pathfinder</p>
+                        <h3 className="text-center fw-bold" style={{ color: '#26522c' }}>
+                            BRAVO – Barco-hotel Reservas, Acomodações, Viagens e Operações
+                        </h3>
+                        <p className="text-center text-muted mb-4">O sistema que guia sua embarcação.</p>
 
                         <Form onSubmit={handleSubmit}>
                             {error && <Alert variant="danger">{error}</Alert>}

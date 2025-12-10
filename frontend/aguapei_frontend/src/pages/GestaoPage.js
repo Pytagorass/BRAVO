@@ -1,6 +1,12 @@
+/**
+ * GestaoPage.js
+ * -------------
+ * Página de Business Intelligence. Carrega indicadores consolidados,
+ * gráficos e listas de reservas pendentes para apoiar decisões.
+ */
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchIndicadoresGestao, fetchReservasPendentesGestao } from '../services/api';
+import { fetchIndicadoresGestao, fetchReservasPendentesGestao, fetchAgendaReservas } from '../services/api';
 import { Row, Col, Spinner, Alert, Button, Form, Card, Badge, Modal, Table } from 'react-bootstrap';
 import './GestaoPage.css';
 
@@ -17,6 +23,9 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { toast } from 'react-toastify';
 
 Chart.register(
   CategoryScale,
@@ -30,6 +39,7 @@ Chart.register(
   Legend
 );
 
+// Formata valores numéricos como moeda brasileira para exibição nos gráficos/cartões.
 const formatCurrency = (value) => {
   const numberValue = parseFloat(value) || 0;
   return new Intl.NumberFormat('pt-BR', {
@@ -38,9 +48,11 @@ const formatCurrency = (value) => {
   }).format(numberValue);
 };
 
+// Formata números inteiros com separador pt-BR para contadores.
 const formatNumber = (value) =>
   new Intl.NumberFormat('pt-BR').format(Number.isFinite(Number(value)) ? Number(value) : 0);
 
+// Converte número em string decimal com a quantidade de casas informada.
 const formatDecimal = (value, digits = 2) => (Number(value) || 0).toFixed(digits);
 
 const STATUS_BADGE_VARIANT = {
@@ -57,6 +69,7 @@ const PAGAMENTO_BADGE_VARIANT = {
   Cancelado: 'secondary',
 };
 
+// Converte datas ISO do backend em data pt-BR; usado em tabelas e PDFs.
 const formatDate = (value) => {
   if (!value) return '-';
   const date = new Date(value);
@@ -64,6 +77,7 @@ const formatDate = (value) => {
   return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 };
 
+// Converte o formato YYYY-MM usado no SQL para rótulos "Mai/25".
 const formatChartLabel = (mes_ano) => {
   try {
     const [ano, mes] = mes_ano.split('-');
@@ -76,6 +90,14 @@ const formatChartLabel = (mes_ano) => {
   }
 };
 
+/**
+ * Página de Gestão (BI).
+ *
+ * Responsabilidades:
+ *  - Buscar KPIs agregados no backend (impacta consultas pesadas no banco).
+ *  - Renderizar gráficos, cards e tabelas para o front-end administrativo.
+ *  - Disponibilizar exportação mensal em PDF usando os dados já carregados.
+ */
 const GestaoPage = () => {
   const navigate = useNavigate();
   const [indicadores, setIndicadores] = useState(null);
@@ -86,9 +108,16 @@ const GestaoPage = () => {
   const [loadingPendentes, setLoadingPendentes] = useState(false);
   const [reservasPendentesLista, setReservasPendentesLista] = useState([]);
   const [erroPendentes, setErroPendentes] = useState(null);
+  const [confirmRelatorio, setConfirmRelatorio] = useState({ visible: false, mesInfo: null });
+  const [gerandoRelatorio, setGerandoRelatorio] = useState(false);
   const anosDisponiveis = [0, 1, 2, 3].map((i) => new Date().getFullYear() - i);
 
   useEffect(() => {
+    /**
+     * Busca indicadores do ano selecionado sempre que `anoSelecionado` muda.
+     * Consome o endpoint `/gestao/indicadores/`, que executa queries consolidadas
+     * (impacto direto no banco). Em caso de falha, mostra alerta na interface.
+     */
     const carregarIndicadores = async () => {
       try {
         setLoading(true);
@@ -104,6 +133,10 @@ const GestaoPage = () => {
     carregarIndicadores();
   }, [anoSelecionado]);
 
+  /**
+   * Carrega reservas com pagamento pendente para o modal específico.
+   * Chama `/gestao/reservas-pendentes/` e armazena o resultado na tabela.
+   */
   const carregarReservasPendentes = async () => {
     try {
       setErroPendentes(null);
@@ -128,6 +161,91 @@ const GestaoPage = () => {
     setErroPendentes(null);
   };
 
+  /**
+   * Gera o PDF com os dados resumidos + reservas do mês selecionado.
+   *
+   * @param {object} mesInfo - registro do array `faturamento_mensal`.
+   * @param {Array} reservasDoMes - reservas filtradas via `/agenda/`.
+   * Fluxo:
+   *   1. Monta cabeçalho com indicadores (sem alterar o banco).
+   *   2. Renderiza tabela de reservas referente ao mês.
+   * Retorno: nenhum (dispara download local via jsPDF).
+   */
+  const gerarRelatorioMensalPDF = (mesInfo, reservasDoMes) => {
+    if (!mesInfo) return;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'pt' });
+    const tituloMes = formatChartLabel(mesInfo.mes_ano);
+
+    doc.setFontSize(16);
+    doc.text(`Relatório Mensal - ${tituloMes}`, 40, 40);
+
+    autoTable(doc, {
+      startY: 70,
+      head: [['Indicador', 'Valor']],
+      body: [
+        ['Faturamento Mensal', formatCurrency(mesInfo.faturamento_mensal)],
+        ['Taxa de Ocupação', `${formatDecimal(mesInfo.taxa_ocupacao_percent)}%`],
+        ['Dias Ocupados', formatNumber(mesInfo.dias_ocupados || 0)],
+        ['Dias Disponíveis', formatNumber(mesInfo.dias_disponiveis_mes || 0)],
+      ],
+    });
+
+    const startYReservas = doc.lastAutoTable?.finalY
+      ? doc.lastAutoTable.finalY + 20
+      : 120;
+
+    if (reservasDoMes?.length) {
+      autoTable(doc, {
+        startY: startYReservas,
+        head: [['Reserva', 'Quarto', 'Titular', 'Check-in', 'Check-out', 'Status']],
+        body: reservasDoMes.map((r) => [
+          r.id_reserva,
+          r.numero_quarto || r.id_quarto,
+          r.nome_titular || 'N/A',
+          formatDate(r.checkin),
+          formatDate(r.checkout),
+          r.status_reserva,
+        ]),
+      });
+    } else {
+      doc.text('Nenhuma reserva localizada para este mês.', 40, startYReservas);
+    }
+
+    doc.save(`relatorio-${mesInfo.mes_ano}.pdf`);
+  };
+
+  /**
+   * Confirmação do modal de exportação.
+   * Busca as reservas via `/agenda/`, filtra pelo mês clicado e
+   * chama `gerarRelatorioMensalPDF`. Impacta o banco apenas no SELECT.
+   */
+  const confirmarExportacao = async () => {
+    if (!confirmRelatorio.mesInfo) return;
+    setGerandoRelatorio(true);
+    try {
+      const reservasAgenda = await fetchAgendaReservas();
+      const reservasDoMes = (reservasAgenda || []).filter((reserva) => {
+        if (!reserva?.checkin) return false;
+        const checkinDate = new Date(reserva.checkin);
+        const chaveMes = `${checkinDate.getFullYear()}-${String(
+          checkinDate.getMonth() + 1
+        ).padStart(2, '0')}`;
+        return chaveMes === confirmRelatorio.mesInfo.mes_ano;
+      });
+      gerarRelatorioMensalPDF(confirmRelatorio.mesInfo, reservasDoMes);
+    } catch (err) {
+      console.error('Falha ao gerar relatório mensal:', err);
+      toast.error('Não foi possível gerar o relatório para este mês.');
+    } finally {
+      setGerandoRelatorio(false);
+      setConfirmRelatorio({ visible: false, mesInfo: null });
+    }
+  };
+
+  /**
+   * Renderiza todo o conteúdo da página (cards + gráficos + modais).
+   * Trata estados de carregamento/erro antes de exibir os dados.
+   */
   const renderContent = () => {
     if (loading)
       return (
@@ -169,6 +287,16 @@ const GestaoPage = () => {
     const ocupacaoMensal = faturamento_mensal.map(
       (item) => parseFloat(item.taxa_ocupacao_percent) || 0
     );
+    /**
+     * Handler do clique na barra de faturamento.
+     * Abre o modal de confirmação, sem gerar PDF imediatamente.
+     */
+    const handleBarChartClick = (event, elements) => {
+      if (!elements?.length) return;
+      const clickedIndex = elements[0].index;
+      setConfirmRelatorio({ visible: true, mesInfo: faturamento_mensal[clickedIndex] });
+    };
+
     const barChartData = {
       labels: barChartLabels,
       datasets: [
@@ -195,6 +323,8 @@ const GestaoPage = () => {
     const barChartOptions = {
       responsive: true,
       maintainAspectRatio: false,
+      // Clique na barra => dispara geração do PDF daquele mês.
+      onClick: handleBarChartClick,
       plugins: {
         legend: { position: 'top' },
         title: { display: true, text: 'Faturamento Mensal (Últimos 12 Meses)' },
@@ -432,6 +562,40 @@ const GestaoPage = () => {
             </Button>
             <Button variant="danger" onClick={() => navigate('/agenda?status_pagamento=Pendente')}>
               Ir para Agenda
+            </Button>
+          </Modal.Footer>
+        </Modal>
+        <Modal
+          show={confirmRelatorio.visible}
+          onHide={() => setConfirmRelatorio({ visible: false, mesInfo: null })}
+          centered
+        >
+          <Modal.Header closeButton>
+            <Modal.Title>Gerar relatório</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            {confirmRelatorio.mesInfo && (
+              <>
+                <p className="mb-3">
+                  Deseja gerar o relatório mensal para{' '}
+                  <strong>{formatChartLabel(confirmRelatorio.mesInfo.mes_ano)}</strong>?
+                </p>
+                <p className="text-muted small">
+                  O arquivo PDF incluirá os indicadores resumidos e a lista de reservas do mês.
+                </p>
+              </>
+            )}
+          </Modal.Body>
+          <Modal.Footer>
+            <Button
+              variant="secondary"
+              onClick={() => setConfirmRelatorio({ visible: false, mesInfo: null })}
+              disabled={gerandoRelatorio}
+            >
+              Cancelar
+            </Button>
+            <Button variant="success" onClick={confirmarExportacao} disabled={gerandoRelatorio}>
+              {gerandoRelatorio ? 'Gerando...' : 'Gerar Relatório'}
             </Button>
           </Modal.Footer>
         </Modal>

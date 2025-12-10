@@ -1,3 +1,10 @@
+/**
+ * QuartoModal.js
+ * --------------
+ * Modal reutilizado para cadastrar ou editar quartos dentro do módulo
+ * administrativo. Sincroniza-se com os endpoints `createQuarto` e
+ * `updateQuarto`.
+ */
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Form, Alert, Col, Row, Spinner, InputGroup } from 'react-bootstrap';
 import { createQuarto, updateQuarto } from '../services/api';
@@ -9,6 +16,12 @@ const STATUS_DO_QUARTO = [
     { value: 'Manutenção', label: 'Em Manutenção' },
 ];
 
+/**
+ * Props:
+ *  - show/handleClose: controle do Modal.
+ *  - onSaveSuccess: devolve o quarto salvo para atualizar a lista.
+ *  - quarto: quando enviado, ativa o modo edição.
+ */
 function QuartoModal({ show, handleClose, onSaveSuccess, quarto }) {
     const isEditMode = Boolean(quarto);
 
@@ -24,6 +37,7 @@ function QuartoModal({ show, handleClose, onSaveSuccess, quarto }) {
     const [error, setError] = useState(null);
 
     useEffect(() => {
+        // Sincroniza formulário ao abrir o modal ou trocar de quarto selecionado.
         if (isEditMode) {
             setFormData({
                 numero: quarto.numero || '',

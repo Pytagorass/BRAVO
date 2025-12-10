@@ -1,7 +1,12 @@
+/**
+ * ReservaConfirmModal.js
+ * ----------------------
+ * Modal intermediário usado pelo fluxo de criação/edição de reservas.
+ * Exibe um resumo das informações antes de enviar o payload definitivo.
+ */
 import React from 'react';
 import { Modal, Button, Spinner } from 'react-bootstrap';
 import moment from 'moment';
-// Importe o CSS que vamos criar no próximo passo
 import './ReservaConfirmModal.css';
 
 // Helper para formatar a data (DD/MM/YYYY)

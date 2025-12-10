@@ -1,4 +1,9 @@
-// /frontend/src/components/ConfirmacaoModal.js
+/**
+ * ConfirmacaoModal.js
+ * -------------------
+ * Modal genérico para confirmações destrutivas (delete, cancelamento etc.).
+ * Recebe textos/handlers via props e aplica padrão visual consistente.
+ */
 import React from 'react';
 import { Modal, Button, Spinner } from 'react-bootstrap';
 

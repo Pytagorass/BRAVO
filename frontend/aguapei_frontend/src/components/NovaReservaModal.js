@@ -1,3 +1,12 @@
+/**
+ * NovaReservaModal.js
+ * -------------------
+ * Formulário completo para criação/edição de reservas direto da Agenda.
+ * Controla:
+ *  - Busca de hóspedes/quartos disponíveis.
+ *  - Preenchimento do payload aceito pelo backend.
+ *  - Seleção de acompanhantes, cálculo automático de valor e confirmação.
+ */
 // frontend/src/components/NovaReservaModal.js
 
 import React, { useState, useEffect } from 'react';
@@ -30,9 +39,19 @@ const PAGAMENTO_CHOICES = [
   { value: 'Em Partes', label: 'Em Partes' },
 ];
 
+/**
+ * Modal responsável por criar ou editar reservas.
+ *
+ * Props:
+ *  - show: controla visibilidade.
+ *  - handleClose: callback para fechar e limpar o formulário.
+ *  - onSaveSuccess: disparado quando o backend retorna a reserva salva.
+ *  - reservaParaEditar: objeto existente (quando aberto em modo edição).
+ */
 function NovaReservaModal({ show, handleClose, onSaveSuccess, reservaParaEditar }) {
   const isEditMode = reservaParaEditar !== null;
 
+// Estado base usado tanto para criação quanto para resetar o formulário.
 const getInitialState = () => ({
     titularId: '',
     quartoId: '',
@@ -55,6 +74,7 @@ const getInitialState = () => ({
   const [confirmData, setConfirmData] = useState(null);
   const [payload, setPayload] = useState(null);
 
+  // Carrega hóspedes/quartos antes de abrir o formulário.
   const fetchModalData = async () => {
     setLoading(true);
     setError(null);
@@ -77,6 +97,7 @@ const getInitialState = () => ({
     }
   };
 
+  // Sempre que o modal abre, carrega dados auxiliares e popula form.
   useEffect(() => {
     if (show) {
       fetchModalData();
@@ -103,6 +124,7 @@ const getInitialState = () => ({
     }
   }, [show, reservaParaEditar, isEditMode]);
 
+  // Recalcula automaticamente o valor total quando datas/quarto mudam.
   useEffect(() => {
     if (formData.checkin && formData.checkout && formData.quartoId) {
       const selectedQuarto = (quartos || []).find(
@@ -159,6 +181,7 @@ const getInitialState = () => ({
     handleClose();
   };
 
+  // Valida payload, abre modal de confirmação e prepara request final.
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);

@@ -1,3 +1,9 @@
+/**
+ * QuartosPage.js
+ * --------------
+ * Tela de administração de quartos. Permite filtrar por status,
+ * cadastrar/editar via modal e excluir com confirmação.
+ */
 import React, { useState, useEffect, useCallback } from 'react';
 import { Spinner, Alert, Button, ButtonGroup } from 'react-bootstrap';
 import { toast } from 'react-toastify';
@@ -7,6 +13,14 @@ import QuartoModal from '../components/QuartoModal';
 import ConfirmacaoModal from '../components/ConfirmacaoModal';
 // import './QuartosPage.css'; // Descomente se existir o arquivo de estilos
 
+/**
+ * Tela de gerenciamento de quartos.
+ *
+ * Responsabilidades:
+ *  - Listar quartos filtrando por status (chama `fetchQuartos`, impactando SELECT no banco).
+ *  - Permitir criar/editar quartos via `QuartoModal` (INSERT/UPDATE em `quarto`).
+ *  - Excluir quartos quando possível (DELETE em `quarto`, sujeito a FK).
+ */
 const QuartosPage = () => {
   const [quartos, setQuartos] = useState([]);
   const [viewStatus, setViewStatus] = useState('Disponível');
@@ -20,7 +34,10 @@ const QuartosPage = () => {
   const [quartoParaExcluir, setQuartoParaExcluir] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Carregar quartos conforme status
+  /**
+   * Busca os quartos de acordo com o filtro atual (`viewStatus`).
+   * Impacta o banco com SELECT simples; atualiza a tabela do front.
+   */
   const carregarQuartos = useCallback(async () => {
     try {
       setLoading(true);
@@ -38,18 +55,23 @@ const QuartosPage = () => {
     carregarQuartos();
   }, [carregarQuartos]);
 
-  // Modais e ações
+  // Abre o modal em modo criação, resetando o item selecionado.
   const handleShowNovoQuarto = () => {
     setQuartoSelecionado(null);
     setShowModal(true);
   };
 
+  // Abre o modal em modo edição com o quarto escolhido.
   const handleShowEditarQuarto = (quarto) => {
     setQuartoSelecionado(quarto);
     setShowModal(true);
   };
 
-  // Atualizar lista após salvar
+  /**
+   * Callback disparado pelo `QuartoModal` após um save bem-sucedido.
+   * Se o status mudou, removemos da lista atual (pois não corresponde ao filtro).
+   * Caso contrário, atualizamos/inserimos o registro na listagem renderizada.
+   */
   const handleSaveSuccess = (quartoSalvo) => {
     setShowModal(false);
 
@@ -70,12 +92,17 @@ const QuartosPage = () => {
     }
   };
 
-  // Excluir quarto
+  // Exibe modal de confirmação antes de deletar definitivamente.
   const handleShowExcluir = (quarto) => {
     setQuartoParaExcluir(quarto);
     setShowConfirmModal(true);
   };
 
+  /**
+   * Confirmação do modal de exclusão.
+   * Chama `deleteQuarto` (DELETE no banco) e remove da UI quando sucesso.
+   * Valida erros de FK para informar ao usuário sobre reservas vinculadas.
+   */
   const handleConfirmExcluir = async () => {
     if (!quartoParaExcluir) return;
     setIsDeleting(true);
@@ -99,7 +126,10 @@ const QuartosPage = () => {
     }
   };
 
-  // Renderização da tabela
+  /**
+   * Renderiza a tabela ou estados de loading/erro.
+   * Sem impacto no banco; apenas organiza o que será mostrado.
+   */
   const renderContent = () => {
     if (loading && quartos.length === 0) {
       return (

@@ -1,8 +1,19 @@
+/**
+ * UsuarioModal.js
+ * ---------------
+ * Permite que o usuário autenticado visualize e edite suas próprias
+ * informações (nome, e-mail e senha). O modal é disparado a partir da
+ * Sidebar.
+ */
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Form, Alert, Spinner } from 'react-bootstrap';
 import { fetchUsuarioPerfil, updateUsuarioPerfil } from '../services/api';
 import { toast } from 'react-toastify';
 
+/**
+ * Props:
+ *  - show/handleClose: controle padrão de modal.
+ */
 function UsuarioModal({ show, handleClose }) {
   const [formData, setFormData] = useState({
     nome_usuario: '',
@@ -17,6 +28,7 @@ function UsuarioModal({ show, handleClose }) {
   const [success, setSuccess] = useState(null);
 
   useEffect(() => {
+    // Carrega o perfil assim que o modal é aberto.
     if (show) {
       const loadProfile = async () => {
         setLoading(true);

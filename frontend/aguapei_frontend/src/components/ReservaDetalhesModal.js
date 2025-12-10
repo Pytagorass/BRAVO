@@ -1,43 +1,14 @@
-// // frontend/src/components/ReservaDetalhesModal.js
-// import React, { useState, useEffect } from 'react';
-// import { Modal, Button, Spinner, Alert } from 'react-bootstrap';
-// import { fetchReservaDetalhes, updateReservaStatus } from '../services/api';
-// import { toast } from 'react-toastify';
-// import ConfirmacaoModal from './ConfirmacaoModal';
-// import './ReservaDetalhesModal.css';
-
-// const formatCurrency = (value) => {
-//   const val = parseFloat(value);
-//   if (isNaN(val)) return 'R$ 0,00';
-//   return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-// };
-
-// const formatDate = (dateString) => {
-//   if (!dateString) return 'N/A';
-//   return new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
-// };
-
-// const getStatusClass = (status) => {
-//   if (!status) return '';
-//   return 'status-' + status.toLowerCase().replace(' ', '-');
-// };
-
-// function ReservaDetalhesModal({
-//   show,
-//   handleClose,
-//   reservaId,
-//   onUpdateSuccess,
-//   onAbrirEditar,
-// }) {
-//   const [reserva, setReserva] = useState(null);
-//   const [loading, setLoading] = useState(false);
-//   const [error, setError] = useState(null);
-//   const [isUpdating, setIsUpdating] = useState(false);
-//   const [updateError, setUpdateError] = useState(null);
-//   const [showConfirmCancel, setShowConfirmCancel] = useState(false);
-
-//   useEffect(() => {
-//     if (show && reservaId) {
+/**
+ * ReservaDetalhesModal.js
+ * -----------------------
+ * Modal que exibe o detalhamento completo de uma reserva selecionada
+ * no Gantt ou em listagens. Além de mostrar informações (titular,
+ * acompanhante, histórico), permite:
+ *   - Atualizar status de pagamento/reserva.
+ *   - Cancelar com confirmação.
+ *   - Ajustar datas rapidamente.
+ *   - Abrir a tela de edição completa.
+ */
 //       const fetchReserva = async () => {
 //         setLoading(true);
 //         setError(null);
@@ -362,6 +333,13 @@ const getStatusClass = (status) => {
     return 'status-' + status.toLowerCase().replace(' ', '-');
 };
 
+/**
+ * Props:
+ *  - show/handleClose: controle do bootstrap modal.
+ *  - reservaId: ID da reserva selecionada na agenda.
+ *  - onUpdateSuccess: notifica parent para atualizar o dataset.
+ *  - onAbrirEditar: abre o modal de edição completa.
+ */
 function ReservaDetalhesModal({ show, handleClose, reservaId, onUpdateSuccess, onAbrirEditar }) {
     const [reserva, setReserva] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -408,6 +386,9 @@ function ReservaDetalhesModal({ show, handleClose, reservaId, onUpdateSuccess, o
         }
     }, [show]);
 
+    // Busca detalhes sempre que o modal abre com um ID válido.
+    // Reset local states toda vez que o modal é fechado.
+    // Preenche campos de ajuste assim que carregamos a reserva.
     useEffect(() => {
         if (reserva) {
             setNovoCheckin(reserva.checkin ? moment(reserva.checkin).format('YYYY-MM-DD') : '');

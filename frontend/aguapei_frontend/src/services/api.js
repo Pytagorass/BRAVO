@@ -1,3 +1,9 @@
+/**
+ * api.js
+ * ------
+ * Centraliza a configuração do Axios (headers, interceptors e baseURL) e
+ * expõe funções utilitárias para cada endpoint do backend Django.
+ */
 import axios from 'axios';
 import { toast } from 'react-toastify';
 
@@ -64,10 +70,10 @@ apiClient.interceptors.response.use(
     }
 
     if (error.request) {
-      toast.error('Nao foi possivel conectar ao servidor.');
+      toast.error('Não foi possivel conectar ao servidor.');
       return Promise.reject({
         success: false,
-        error: { code: 'NETWORK_ERROR', message: 'Nao foi possivel1 conectar ao servidor.' },
+        error: { code: 'NETWORK_ERROR', message: 'Não foi possivel conectar ao servidor.' },
       });
     }
 

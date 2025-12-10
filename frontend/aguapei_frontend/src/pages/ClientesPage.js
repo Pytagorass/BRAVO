@@ -1,3 +1,10 @@
+/**
+ * ClientesPage.js
+ * ----------------
+ * Tela responsável pelo CRUD de hóspedes. Permite filtrar por status,
+ * buscar por nome/país, realizar paginação local e abrir modais de
+ * cadastro/edição ou confirmação de inativação.
+ */
 // src/pages/ClientesPage.js
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Spinner, Alert, Button, ButtonGroup, Form, Pagination, InputGroup } from 'react-bootstrap';
@@ -8,6 +15,13 @@ import ClienteModal from '../components/ClienteModal';
 import ConfirmacaoModal from '../components/ConfirmacaoModal';
 import './ClientesPage.css';
 
+/**
+ * ClientesPage
+ * ------------
+ * Tela que consome os endpoints de hóspedes para listar, criar/editar,
+ * inativar e reativar registros. Impacta o banco via `fetchHospedes`,
+ * `deleteHospede` e `updateHospedeStatus`.
+ */
 const ClientesPage = () => {
   const [clientes, setClientes] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -24,7 +38,10 @@ const ClientesPage = () => {
   const [clienteParaInativar, setClienteParaInativar] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Carregar clientes conforme o status atual (Ativo / Inativo)
+  /**
+   * Carrega clientes conforme o status selecionado.
+   * Chama `fetchHospedes`, que executa a consulta no banco.
+   */
   const carregarClientes = useCallback(async () => {
     try {
       setLoading(true);
@@ -47,7 +64,6 @@ const ClientesPage = () => {
     setCurrentPage(1);
   }, [searchTerm, viewStatus]);
 
-  // Ações de modal
   const handleShowNovoCliente = () => {
     setClienteSelecionado(null);
     setShowClienteModal(true);
@@ -58,6 +74,10 @@ const ClientesPage = () => {
     setShowClienteModal(true);
   };
 
+  /**
+   * Atualiza a lista quando o modal salva com sucesso.
+   * O componente pai recebe o objeto retorno e atualiza em memória.
+   */
   const handleSaveSuccess = (clienteSalvo) => {
     setShowClienteModal(false);
     setClientes((prev) => {
@@ -69,12 +89,15 @@ const ClientesPage = () => {
     toast.success('Cliente salvo com sucesso!');
   };
 
-  // Inativar cliente
   const handleShowInativar = (cliente) => {
     setClienteParaInativar(cliente);
     setShowConfirmModal(true);
   };
 
+  /**
+   * Confirma a inativação chamando `deleteHospede`.
+   * No front, removemos o hóspede da listagem atual (status "Ativo").
+   */
   const handleConfirmInativar = async () => {
     if (!clienteParaInativar) return;
     setIsDeleting(true);
@@ -93,7 +116,10 @@ const ClientesPage = () => {
     }
   };
 
-  // Reativar cliente
+  /**
+   * Reativa o cliente inativo, chamando PATCH no backend.
+   * Remove o objeto da listagem de inativos para refletir a mudança.
+   */
   const handleReativar = async (cliente) => {
     const toastId = toast.loading(`Reativando ${cliente.nome_hospede}...`);
     try {
@@ -117,6 +143,10 @@ const ClientesPage = () => {
     }
   };
 
+  /**
+   * Filtra clientes no front por nome/país.
+   * Retorna uma lista filtrada usada pela paginação local.
+   */
   const clientesFiltrados = useMemo(() => {
     const termo = searchTerm.trim().toLowerCase();
     if (!termo) return clientes;
@@ -146,7 +176,10 @@ const ClientesPage = () => {
     }
   };
 
-  // Conteúdo da tabela
+  /**
+   * Renderiza o conteúdo (loading/erro/tabela com paginação).
+   * Não gera novas chamadas ao backend; usa os estados atuais.
+   */
   const renderContent = () => {
     if (loading && clientes.length === 0) {
       return (
