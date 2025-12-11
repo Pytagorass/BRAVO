@@ -41,6 +41,29 @@ def dictfetchall(cursor):
         for row in cursor.fetchall()
     ]
 
+# -----------------------------------------------------------------------
+# Helper: is_valid_cpf
+# Propósito: validar CPF informado pelo front antes de persistir no banco.
+# Fluxo:
+#   1. Remove tudo que não for dígito.
+#   2. Verifica se possui 11 dígitos e não é uma sequência repetida.
+#   3. Calcula os dígitos verificadores conforme regra oficial.
+# Retorno:
+#   True se o CPF é válido, False caso contrário.
+def is_valid_cpf(value: str) -> bool:
+    if not value:
+        return False
+    digits = ''.join(filter(str.isdigit, value))
+    if len(digits) != 11 or digits == digits[0] * 11:
+        return False
+
+    def calc_digit(slice_len: int) -> int:
+        total = sum(int(digits[i]) * ((slice_len + 2) - (i + 1)) for i in range(slice_len))
+        resto = (total * 10) % 11
+        return 0 if resto == 10 else resto
+
+    return calc_digit(9) == int(digits[9]) and calc_digit(10) == int(digits[10])
+
 #  =======================================================================
 #  2B. HELPERS DE RESPOSTA PADRONIZADA
 #  =======================================================================
@@ -126,6 +149,10 @@ def login_view(request):
             # Validação básica para evitar hits desnecessários ao banco.
             return error_response('Email e senha são obrigatórios', 'VALIDATION_ERROR', 400)
 
+        # Consulta responsável por autenticar usuários ativos; usada pela tela de Login
+        # para gerar o JWT. Não há agregações, apenas SELECT simples em `usuario`.
+        # SELECT usado na tela ClientesPage para listar hóspede por status.
+        # Consulta da página QuartosPage: filtra quartos por status (Disponível/Manutenção).
         sql_query = """
             SELECT id_usuario, nome_usuario, email_usuario, tipo_usuario, senha 
             FROM usuario
@@ -186,6 +213,8 @@ def login_view(request):
 @require_http_methods(["GET"])
 def get_agenda_reservas(request):
 
+    # SELECT que alimenta o Gantt (AgendaDashboard). Busca reservas com check-in/out
+    # e inclui dados de quarto e titular; sem agregações, apenas JOINs.
     sql_query = """
         SELECT
             rq.id_reserva_quarto, 
@@ -289,6 +318,8 @@ def reservas_view(request):
                 return error_response('Quarto em manutencao nao pode ser reservado.', 'QUARTO_MANUTENCAO', 409)
 
             # Repete a checagem de overbooking para impedir conflitos futuros.
+            # Consulta de validação para evitar overbooking; verifica se há reservas
+            # que se sobrepõem ao período solicitado. Usada pelo formulário NovaReserva.
             sql_check_overbooking = """
                 SELECT
                     rq.checkin,
@@ -642,9 +673,13 @@ def hospedes_view(request):
         try:
             data = json.loads(request.body)
             
-            # Validações pré-insert
-            if data.get('pais_origem', 'Brasil') == 'Brasil' and not data.get('cpf'):
-                return error_response("CPF é obrigatório para hóspedes do Brasil.", "VALIDATION_ERROR", 400)
+            # Validações pré-insert: CPF obrigatório e com dígitos válidos para brasileiros.
+            if data.get('pais_origem', 'Brasil') == 'Brasil':
+                cpf = data.get('cpf')
+                if not cpf:
+                    return error_response("CPF é obrigatório para hóspedes do Brasil.", "VALIDATION_ERROR", 400)
+                if not is_valid_cpf(cpf):
+                    return error_response("Informe um CPF válido.", "VALIDATION_ERROR", 400)
             if data.get('pais_origem', 'Brasil') != 'Brasil' and not data.get('passaporte'):
                 return error_response("Passaporte é obrigatório para hóspedes estrangeiros.", "VALIDATION_ERROR", 400)
 
@@ -686,9 +721,13 @@ def hospede_detail_view(request, hospede_id):
         try:
             data = json.loads(request.body)
             
-            # Validações
-            if data.get('pais_origem', 'Brasil') == 'Brasil' and not data.get('cpf'):
-                return error_response("CPF é obrigatório para hóspedes do Brasil.", "VALIDATION_ERROR", 400)
+            # Validações na edição: reforçamos CPF válido para brasileiros.
+            if data.get('pais_origem', 'Brasil') == 'Brasil':
+                cpf = data.get('cpf')
+                if not cpf:
+                    return error_response("CPF é obrigatório para hóspedes do Brasil.", "VALIDATION_ERROR", 400)
+                if not is_valid_cpf(cpf):
+                    return error_response("Informe um CPF válido.", "VALIDATION_ERROR", 400)
             if data.get('pais_origem', 'Brasil') != 'Brasil' and not data.get('passaporte'):
                 return error_response("Passaporte é obrigatório para hóspedes estrangeiros.", "VALIDATION_ERROR", 400)
 
@@ -1098,6 +1137,7 @@ def get_indicadores_gestao(request):
         status_template = ['Agendada', 'Ativa', 'Concluda', 'Cancelada']
 
         with connection.cursor() as cursor:
+            # KPIs exibidos nos cards superiores da tela de Gestão (soma faturamento e total de reservas).
             sql_kpi = """
                 SELECT
                     COALESCE(SUM(r.valor_total), 0.00) AS faturamento_total,
@@ -1111,6 +1151,8 @@ def get_indicadores_gestao(request):
             cursor.execute(sql_kpi, [data_inicio, data_fim])
             kpi_data = dictfetchall(cursor)[0]
 
+            # CTE com 12 meses que alimenta o gráfico "Faturamento Mensal / Ocupação (%)".
+            # Possui agregações para faturamento e dias ocupados, além de cálculo de taxa de ocupação.
             sql_mensal = """
                 WITH meses AS (
                     SELECT date_trunc('month', (%s::date + (n || ' months')::interval)) AS mes
@@ -1173,6 +1215,8 @@ def get_indicadores_gestao(request):
             cursor.execute(sql_mensal, [data_inicio, data_inicio, data_fim, data_inicio, data_fim])
             faturamento_mensal = dictfetchall(cursor)
 
+            # Consulta auxiliar para o mesmo painel de Gestão: calcula taxa de ocupação anual
+            # com base em dias vendidos versus dias disponíveis.
             sql_ocupacao = """
                 WITH dias_disponiveis AS (
                     SELECT
@@ -1214,6 +1258,7 @@ def get_indicadores_gestao(request):
             cursor.execute(sql_ocupacao, params_ocupacao)
             taxa_ocupacao = dictfetchall(cursor)[0]
 
+            # Alimenta o gráfico de rosca "Faturamento por tipo de quarto".
             sql_tipo_quarto = """
                 SELECT
                     q.tipo_quarto,
@@ -1230,6 +1275,7 @@ def get_indicadores_gestao(request):
             cursor.execute(sql_tipo_quarto, [data_inicio, data_fim])
             faturamento_por_tipo = dictfetchall(cursor)
 
+            # Dados para o gráfico de barras que mostra quantidade de reservas por status.
             sql_reservas_status = """
                 SELECT
                     r.status_reserva,
@@ -1250,6 +1296,7 @@ def get_indicadores_gestao(request):
                 for status in status_template
             ]
 
+            # Valor total e contagem de reservas em aberto, exibidos no card "Pagamentos Pendentes".
             sql_pagamentos = """
                 SELECT
                     COALESCE(SUM(r.valor_total), 0.00) AS valor_pendente,
@@ -1293,6 +1340,8 @@ def get_reservas_pendentes(request):
     """
     try:
         with connection.cursor() as cursor:
+            # Consulta usada no modal "Reservas pendentes" da tela de Gestão.
+            # Sem agregações complexas, mas calcula `dias_desde_checkin` com NOW() para mostrar no front.
             sql = """
                 SELECT
                     rq.id_reserva_quarto,

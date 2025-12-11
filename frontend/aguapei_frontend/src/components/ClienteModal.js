@@ -19,6 +19,26 @@ import { toast } from 'react-toastify';
 const digitsOnly = (value = '') => value.replace(/\D/g, '');
 const MAX_PHONE_LENGTH = 15;
 
+// Valida CPF localmente (mesma lógica aplicada no backend) para dar feedback imediato ao usuário.
+const isValidCPF = (value = '') => {
+    const digits = digitsOnly(value);
+    if (digits.length !== 11 || /^(\d)\1+$/.test(digits)) return false;
+
+    const calculateDigit = (sliceLength) => {
+        const total = digits
+            .slice(0, sliceLength)
+            .split('')
+            .reduce((acc, curr, index) => acc + Number(curr) * (sliceLength + 1 - index), 0);
+        const rest = (total * 10) % 11;
+        return rest === 10 ? 0 : rest;
+    };
+
+    return (
+        calculateDigit(9) === Number(digits[9]) &&
+        calculateDigit(10) === Number(digits[10])
+    );
+};
+
 // Formata CPF conforme padrão brasileiro sem alterar o valor bruto enviado ao servidor.
 const formatCpf = (value = '') => {
     const digits = digitsOnly(value).slice(0, 11);
@@ -181,6 +201,11 @@ function ClienteModal({ show, handleClose, onSaveSuccess, cliente }) {
             };
 
             if (formData.pais_origem === 'Brasil') {
+                if (!isValidCPF(formData.cpf)) {
+                    setError('Informe um CPF válido.');
+                    setIsSaving(false);
+                    return;
+                }
                 payload.passaporte = '';
                 if (payload.telefone && !payload.telefone.startsWith('55')) {
                     payload.telefone = `55${payload.telefone}`;

@@ -18,7 +18,7 @@ import ConfirmacaoModal from '../components/ConfirmacaoModal';
  *
  * Responsabilidades:
  *  - Listar quartos filtrando por status (chama `fetchQuartos`, impactando SELECT no banco).
- *  - Permitir criar/editar quartos via `QuartoModal` (INSERT/UPDATE em `quarto`).
+ *  - Permite criar/editar quartos via `QuartoModal` (INSERT/UPDATE em `quarto`).
  *  - Excluir quartos quando possível (DELETE em `quarto`, sujeito a FK).
  */
 const QuartosPage = () => {
