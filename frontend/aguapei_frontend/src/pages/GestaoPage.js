@@ -4,10 +4,11 @@
  * Página de Business Intelligence. Carrega indicadores consolidados,
  * gráficos e listas de reservas pendentes para apoiar decisões.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchIndicadoresGestao, fetchReservasPendentesGestao, fetchAgendaReservas } from '../services/api';
 import { Row, Col, Spinner, Alert, Button, Form, Card, Badge, Modal, Table } from 'react-bootstrap';
+import { AlertTriangle, BarChart2, FileText, RefreshCw } from 'react-feather';
 import './GestaoPage.css';
 
 import { Bar, Doughnut } from 'react-chartjs-2';
@@ -112,26 +113,27 @@ const GestaoPage = () => {
   const [gerandoRelatorio, setGerandoRelatorio] = useState(false);
   const anosDisponiveis = [0, 1, 2, 3].map((i) => new Date().getFullYear() - i);
 
-  useEffect(() => {
-    /**
-     * Busca indicadores do ano selecionado sempre que `anoSelecionado` muda.
-     * Consome o endpoint `/gestao/indicadores/`, que executa queries consolidadas
-     * (impacto direto no banco). Em caso de falha, mostra alerta na interface.
-     */
-    const carregarIndicadores = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await fetchIndicadoresGestao(anoSelecionado);
-        setIndicadores(data);
-      } catch (err) {
-        setError(err.message || 'Falha ao carregar os indicadores de gestão.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    carregarIndicadores();
+  /**
+   * Busca indicadores do ano selecionado sempre que `anoSelecionado` muda.
+   * Consome o endpoint `/gestao/indicadores/`, que executa queries consolidadas
+   * (impacto direto no banco). Em caso de falha, mostra alerta na interface.
+   */
+  const carregarIndicadores = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchIndicadoresGestao(anoSelecionado);
+      setIndicadores(data);
+    } catch (err) {
+      setError(err.message || 'Falha ao carregar os indicadores de gestão.');
+    } finally {
+      setLoading(false);
+    }
   }, [anoSelecionado]);
+
+  useEffect(() => {
+    carregarIndicadores();
+  }, [carregarIndicadores]);
 
   /**
    * Carrega reservas com pagamento pendente para o modal específico.
@@ -185,8 +187,8 @@ const GestaoPage = () => {
       body: [
         ['Faturamento Mensal', formatCurrency(mesInfo.faturamento_mensal)],
         ['Taxa de Ocupação', `${formatDecimal(mesInfo.taxa_ocupacao_percent)}%`],
-        ['Dias Ocupados', formatNumber(mesInfo.dias_ocupados || 0)],
-        ['Dias Disponíveis', formatNumber(mesInfo.dias_disponiveis_mes || 0)],
+        ['Quartos Ocupados', formatNumber(mesInfo.dias_ocupados || 0)],
+        ['Quartos Disponíveis', formatNumber(mesInfo.dias_disponiveis_mes || 0)],
       ],
     });
 
@@ -249,18 +251,23 @@ const GestaoPage = () => {
   const renderContent = () => {
     if (loading)
       return (
-        <div className="text-center p-5">
-          <Spinner animation="border" variant="success" />
-          <p>Carregando indicadores...</p>
+        <div className="gestao-loading-grid" aria-live="polite">
+          <div className="gestao-loading-card" />
+          <div className="gestao-loading-card" />
+          <div className="gestao-loading-card" />
+          <div className="gestao-loading-card" />
+          <div className="gestao-loading-chart gestao-loading-chart-wide" />
+          <div className="gestao-loading-chart" />
         </div>
       );
 
     if (error)
       return (
-        <Alert variant="danger">
+        <Alert variant="danger" className="gestao-error-alert">
           <Alert.Heading>Erro ao Carregar Indicadores</Alert.Heading>
           <p>{error}</p>
-          <Button onClick={() => setAnoSelecionado(anoSelecionado)} variant="danger">
+          <Button onClick={carregarIndicadores} variant="danger">
+            <RefreshCw size={16} aria-hidden="true" />
             Tentar Novamente
           </Button>
         </Alert>
@@ -278,6 +285,7 @@ const GestaoPage = () => {
     } = indicadores;
     const pagamentosValor = Number(pagamentos_pendentes?.valor_pendente || 0);
     const reservasPendentes = Number(pagamentos_pendentes?.reservas_em_aberto || 0);
+    const temPendencias = pagamentosValor > 0 || reservasPendentes > 0;
     const diasVendidosFmt = formatNumber(taxa_ocupacao?.total_dias_vendidos || 0);
     const diasBaseFmt = formatNumber(taxa_ocupacao?.total_dias_base || 0);
     const barChartLabels = faturamento_mensal.map((item) => formatChartLabel(item.mes_ano));
@@ -326,8 +334,8 @@ const GestaoPage = () => {
       // Clique na barra => dispara geração do PDF daquele mês.
       onClick: handleBarChartClick,
       plugins: {
-        legend: { position: 'top' },
-        title: { display: true, text: 'Faturamento Mensal (Últimos 12 Meses)' },
+        legend: { position: 'bottom' },
+        title: { display: false },
         tooltip: {
           callbacks: {
             label: (context) => {
@@ -383,11 +391,8 @@ const GestaoPage = () => {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { position: 'top' },
-        title: {
-          display: true,
-          text: `Faturamento por Tipo de Quarto (${ano_filtrado})`,
-        },
+        legend: { position: 'bottom' },
+        title: { display: false },
         tooltip: {
           callbacks: {
             label: (context) =>
@@ -400,7 +405,7 @@ const GestaoPage = () => {
     return (
       <>
 
-        <Row className="mb-4">
+        <Row className="gestao-kpi-row mb-4">
           <Col lg={3} md={6} className="mb-3">
             <Card className="kpi-card">
               <Card.Body>
@@ -420,7 +425,7 @@ const GestaoPage = () => {
                 <Card.Title className="kpi-card-title">
                   Total de Reservas ({ano_filtrado})
                 </Card.Title>
-                <Card.Text className="kpi-card-value">{kpis.total_reservas}</Card.Text>
+                <Card.Text className="kpi-card-value">{formatNumber(kpis.total_reservas)}</Card.Text>
               </Card.Body>
             </Card>
           </Col>
@@ -442,9 +447,16 @@ const GestaoPage = () => {
           </Col>
 
           <Col lg={3} md={6} className="mb-3">
-            <Card className="kpi-card">
+            <Card className={temPendencias ? 'kpi-card kpi-alert-card' : 'kpi-card'}>
               <Card.Body>
-                <Card.Title className="kpi-card-title">Pagamentos Pendentes</Card.Title>
+                <Card.Title className="kpi-card-title kpi-card-title-row">
+                  <span>Pagamentos Pendentes</span>
+                  {temPendencias && (
+                    <Badge bg="danger" className="kpi-badge">
+                      Atenção
+                    </Badge>
+                  )}
+                </Card.Title>
                 <Card.Text className="kpi-card-value">
                   {formatCurrency(pagamentosValor)}
                 </Card.Text>
@@ -454,10 +466,11 @@ const GestaoPage = () => {
                 <Button
                   variant="outline-danger"
                   size="sm"
-                  className="mt-2"
+                  className="kpi-action-button"
                   onClick={handleAbrirPendentesModal}
                   disabled={loadingPendentes}
                 >
+                  <AlertTriangle size={15} aria-hidden="true" />
                   Ver reservas em atraso
                 </Button>
               </Card.Body>
@@ -465,29 +478,61 @@ const GestaoPage = () => {
           </Col>
         </Row>
 
-        <Row>
-          <Col md={8} className="mb-3 mb-md-0">
+        <Row className="gestao-chart-row">
+          <Col lg={8} className="mb-3 mb-lg-0">
             <Card className="financial-panel">
               <Card.Body>
-                <div className="chart-container" style={{ position: 'relative', height: '400px' }}>
+                <div className="chart-panel-header">
+                  <div>
+                    <h2 className="chart-panel-title">
+                      <BarChart2 size={18} aria-hidden="true" />
+                      Faturamento e ocupação
+                    </h2>
+                    <p className="chart-panel-meta">
+                      Últimos 12 meses com linha de ocupação por período.
+                    </p>
+                  </div>
+                  <span className="chart-panel-hint">
+                    <FileText size={15} aria-hidden="true" />
+                    Clique em uma barra para exportar o mês
+                  </span>
+                </div>
+                <div className="chart-container chart-container-primary">
                   {barChartDataPoints.length > 0 ? (
                     <Bar options={barChartOptions} data={barChartData} />
                   ) : (
-                    <p>Nenhum faturamento para exibir.</p>
+                    <div className="chart-empty-state">
+                      <BarChart2 size={22} aria-hidden="true" />
+                      Nenhum faturamento para exibir.
+                    </div>
                   )}
                 </div>
               </Card.Body>
             </Card>
           </Col>
 
-          <Col md={4}>
+          <Col lg={4}>
             <Card className="financial-panel">
               <Card.Body>
-                <div className="chart-container" style={{ position: 'relative', height: '400px' }}>
+                <div className="chart-panel-header chart-panel-header-compact">
+                  <div>
+                    <h2 className="chart-panel-title">
+                      <BarChart2 size={18} aria-hidden="true" />
+                      Receita por tipo
+                    </h2>
+                    <p className="chart-panel-meta">
+                      Distribuição do faturamento em {ano_filtrado}.
+                    </p>
+                  </div>
+                </div>
+                <div className="chart-container chart-container-secondary">
                   {pieChartDataPoints.length > 0 ? (
                     <Doughnut options={pieChartOptions} data={pieChartData} />
                   ) : (
-                    <p>Nenhum faturamento para agrupar.</p>
+                    <div className="chart-empty-state">
+                      <BarChart2 size={22} aria-hidden="true" />
+                      Nenhum faturamento para agrupar.
+                    </div>
                   )}
                 </div>
               </Card.Body>
@@ -510,46 +555,52 @@ const GestaoPage = () => {
             ) : reservasPendentesLista.length === 0 ? (
               <p className="mb-0">Nenhuma reserva pendente encontrada neste momento.</p>
             ) : (
-              <Table responsive striped hover size="sm">
+              <Table responsive hover size="sm" className="gestao-pendencias-table">
                 <thead>
                   <tr>
-                    <th>#</th>
-                    <th>Titular</th>
-                    <th>Quarto</th>
-                    <th>Check-in</th>
-                    <th>Check-out</th>
                     <th>Reserva</th>
-                    <th>Pagamento</th>
-                    <th>Dias desde check-in</th>
-                    <th>Subtotal</th>
+                    <th>Titular</th>
+                    <th>Período</th>
+                    <th>Status</th>
+                    <th>Atraso</th>
+                    <th>Valor</th>
                   </tr>
                 </thead>
                 <tbody>
                   {reservasPendentesLista.map((reserva) => (
                     <tr key={reserva.id_reserva_quarto}>
-                      <td>#{reserva.id_reserva}</td>
+                      <td>
+                        <div className="pendencia-main">#{reserva.id_reserva}</div>
+                        <div className="text-muted small">
+                          Quarto {reserva.numero_quarto || '--'} {reserva.tipo_quarto || ''}
+                        </div>
+                      </td>
                       <td>
                         <div className="fw-semibold">{reserva.titular || '--'}</div>
                         <div className="text-muted small">{reserva.email_hospede || ''}</div>
                       </td>
                       <td>
-                        {reserva.numero_quarto || '--'}{' '}
-                        <span className="text-muted small">{reserva.tipo_quarto || ''}</span>
-                      </td>
-                      <td>{formatDate(reserva.checkin)}</td>
-                      <td>{formatDate(reserva.checkout)}</td>
-                      <td>
-                        <Badge bg={STATUS_BADGE_VARIANT[reserva.status_reserva] || 'secondary'}>
-                          {reserva.status_reserva}
-                        </Badge>
+                        <div className="pendencia-period">
+                          <span>{formatDate(reserva.checkin)}</span>
+                          <span>{formatDate(reserva.checkout)}</span>
+                        </div>
                       </td>
                       <td>
-                        <Badge bg={PAGAMENTO_BADGE_VARIANT[reserva.status_pagamento] || 'secondary'}>
-                          {reserva.status_pagamento}
-                        </Badge>
+                        <div className="pendencia-status-stack">
+                          <Badge bg={STATUS_BADGE_VARIANT[reserva.status_reserva] || 'secondary'}>
+                            {reserva.status_reserva}
+                          </Badge>
+                          <Badge bg={PAGAMENTO_BADGE_VARIANT[reserva.status_pagamento] || 'secondary'}>
+                            {reserva.status_pagamento}
+                          </Badge>
+                        </div>
                       </td>
-                      <td>{formatNumber(reserva.dias_desde_checkin)}</td>
-                      <td>{formatCurrency(reserva.valor_total)}</td>
+                      <td>
+                        <span className="delay-pill">
+                          {formatNumber(reserva.dias_desde_checkin)} dias
+                        </span>
+                      </td>
+                      <td className="pendencia-value">{formatCurrency(reserva.valor_total)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -571,7 +622,7 @@ const GestaoPage = () => {
           centered
         >
           <Modal.Header closeButton>
-            <Modal.Title>Gerar relatório</Modal.Title>
+            <Modal.Title>Exportar relatório mensal</Modal.Title>
           </Modal.Header>
           <Modal.Body>
             {confirmRelatorio.mesInfo && (
@@ -594,8 +645,23 @@ const GestaoPage = () => {
             >
               Cancelar
             </Button>
-            <Button variant="success" onClick={confirmarExportacao} disabled={gerandoRelatorio}>
-              {gerandoRelatorio ? 'Gerando...' : 'Gerar Relatório'}
+            <Button
+              variant="success"
+              className="modal-primary-action"
+              onClick={confirmarExportacao}
+              disabled={gerandoRelatorio}
+            >
+              {gerandoRelatorio ? (
+                <>
+                  <Spinner size="sm" animation="border" aria-hidden="true" />
+                  Gerando...
+                </>
+              ) : (
+                <>
+                  <FileText size={16} aria-hidden="true" />
+                  Gerar Relatório
+                </>
+              )}
             </Button>
           </Modal.Footer>
         </Modal>
@@ -606,20 +672,45 @@ const GestaoPage = () => {
   return (
     <div className="gestao-page">
       <div className="page-header">
-        <h1>Gestão Aguapé - Relatórios e Indicadores</h1>
-        <div style={{ width: '200px' }}>
-          <Form.Select
-            value={anoSelecionado}
-            onChange={(e) => setAnoSelecionado(e.target.value)}
-            disabled={loading}
-            aria-label="Selecionar Ano"
-          >
-            {anosDisponiveis.map((ano) => (
-              <option key={ano} value={ano}>
-                {ano}
-              </option>
-            ))}
-          </Form.Select>
+        <div className="page-title-block">
+          <h1>Gestão Aguapé</h1>
+          <span className="page-title-meta">Relatórios, indicadores e pendências financeiras</span>
+        </div>
+        <div className="gestao-toolbar">
+          <div className="gestao-toolbar-actions">
+            <Button
+              variant="outline-secondary"
+              className="gestao-toolbar-button"
+              onClick={carregarIndicadores}
+              disabled={loading}
+            >
+              <RefreshCw size={16} aria-hidden="true" />
+              Atualizar
+            </Button>
+            <Button
+              variant="outline-danger"
+              className="gestao-toolbar-button"
+              onClick={handleAbrirPendentesModal}
+              disabled={loadingPendentes}
+            >
+              <AlertTriangle size={16} aria-hidden="true" />
+              Pendências
+            </Button>
+          </div>
+          <div className="gestao-year-select">
+            <Form.Select
+              value={anoSelecionado}
+              onChange={(e) => setAnoSelecionado(Number(e.target.value))}
+              disabled={loading}
+              aria-label="Selecionar Ano"
+            >
+              {anosDisponiveis.map((ano) => (
+                <option key={ano} value={ano}>
+                  {ano}
+                </option>
+              ))}
+            </Form.Select>
+          </div>
         </div>
       </div>
       <div className="page-content">{renderContent()}</div>

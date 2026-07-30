@@ -7,11 +7,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Spinner, Alert, Button, ButtonGroup } from 'react-bootstrap';
 import { toast } from 'react-toastify';
+import { Edit2, Plus, Trash2 } from 'react-feather';
 
 import { fetchQuartos, deleteQuarto } from '../services/api';
 import QuartoModal from '../components/QuartoModal';
 import ConfirmacaoModal from '../components/ConfirmacaoModal';
-// import './QuartosPage.css'; // Descomente se existir o arquivo de estilos
+import './QuartosPage.css';
+
+const formatCurrency = (value) =>
+  new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(Number(value) || 0);
 
 /**
  * Tela de gerenciamento de quartos.
@@ -33,6 +40,10 @@ const QuartosPage = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [quartoParaExcluir, setQuartoParaExcluir] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const valorMedio = quartos.length
+    ? quartos.reduce((total, quarto) => total + Number(quarto.valor_diaria || 0), 0) / quartos.length
+    : 0;
+  const tiposQuarto = new Set(quartos.map((quarto) => quarto.tipo_quarto).filter(Boolean)).size;
 
   /**
    * Busca os quartos de acordo com o filtro atual (`viewStatus`).
@@ -161,8 +172,9 @@ const QuartosPage = () => {
     }
 
     return (
-      <div className="table-responsive">
-        <table className="table table-striped table-hover align-middle">
+      <div className="quartos-table-shell">
+        <div className="table-responsive">
+        <table className="table table-hover align-middle app-data-table">
           <thead>
             <tr>
               <th>Número / Nome</th>
@@ -175,39 +187,48 @@ const QuartosPage = () => {
           <tbody>
             {quartos.map((quarto) => (
               <tr key={quarto.id_quarto}>
-                <td>{quarto.numero}</td>
-                <td>{quarto.tipo_quarto}</td>
                 <td>
-                  {new Intl.NumberFormat('pt-BR', {
-                    style: 'currency',
-                    currency: 'BRL',
-                  }).format(quarto.valor_diaria)}
+                  <span className="quarto-number">{quarto.numero}</span>
                 </td>
-                <td>{quarto.status_quarto}</td>
                 <td>
+                  <span className="table-soft-pill">{quarto.tipo_quarto}</span>
+                </td>
+                <td>
+                  {formatCurrency(quarto.valor_diaria)}
+                </td>
+                <td>
+                  <span className={`status-pill ${viewStatus.startsWith('Manuten') ? 'warning' : 'success'}`}>
+                    {quarto.status_quarto}
+                  </span>
+                </td>
+                <td>
+                  <div className="table-action-group">
                   <Button
                     size="sm"
                     variant="outline-secondary"
                     onClick={() => handleShowEditarQuarto(quarto)}
                   >
+                    <Edit2 size={14} />
                     Editar
                   </Button>
 
-                  {viewStatus === 'Manutenção' && (
+                  {viewStatus.startsWith('Manuten') && (
                     <Button
                       size="sm"
                       variant="outline-danger"
-                      className="ms-2"
                       onClick={() => handleShowExcluir(quarto)}
                     >
+                      <Trash2 size={14} />
                       Excluir
                     </Button>
                   )}
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+      </div>
       </div>
     );
   };
@@ -215,14 +236,17 @@ const QuartosPage = () => {
   return (
     <div className="quartos-page">
       <div className="page-header">
-        <h1>Gerenciamento de Quartos</h1>
-        <div className="page-actions mb-3">
+        <div className="page-title-block">
+          <h1>Gerenciamento de Quartos</h1>
+          <span className="page-title-meta">Tarifas, categorias e disponibilidade operacional</span>
+        </div>
+        <div className="quartos-toolbar">
           <ButtonGroup className="me-2">
             <Button
-              variant={viewStatus === 'Disponível' ? 'success' : 'outline-secondary'}
+              variant={viewStatus.startsWith('Dispon') ? 'success' : 'outline-secondary'}
               onClick={() => setViewStatus('Disponível')}
               style={
-                viewStatus === 'Disponível'
+                viewStatus.startsWith('Dispon')
                   ? { backgroundColor: '#26522c', borderColor: '#26522c' }
                   : {}
               }
@@ -230,7 +254,7 @@ const QuartosPage = () => {
               Disponíveis
             </Button>
             <Button
-              variant={viewStatus === 'Manutenção' ? 'warning' : 'outline-secondary'}
+              variant={viewStatus.startsWith('Manuten') ? 'warning' : 'outline-secondary'}
               onClick={() => setViewStatus('Manutenção')}
             >
               Em Manutenção
@@ -239,11 +263,31 @@ const QuartosPage = () => {
 
           <Button
             variant="primary"
-            style={{ backgroundColor: '#26522c', borderColor: '#26522c' }}
+            className="page-primary-action"
             onClick={handleShowNovoQuarto}
           >
-            + Novo Quarto
+            <Plus size={16} />
+            Novo Quarto
           </Button>
+        </div>
+      </div>
+
+      <div className="page-summary-grid quartos-summary-grid">
+        <div className="summary-card">
+          <span className="summary-label">Visualização</span>
+          <strong>{viewStatus}</strong>
+        </div>
+        <div className="summary-card">
+          <span className="summary-label">Quartos</span>
+          <strong>{quartos.length}</strong>
+        </div>
+        <div className="summary-card">
+          <span className="summary-label">Tipos</span>
+          <strong>{tiposQuarto}</strong>
+        </div>
+        <div className="summary-card">
+          <span className="summary-label">Diária média</span>
+          <strong>{formatCurrency(valorMedio)}</strong>
         </div>
       </div>
 

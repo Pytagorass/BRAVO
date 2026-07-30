@@ -19,6 +19,10 @@ urlpatterns = [
     path('hospedes/', views.hospedes_view, name='hospedes_view'),
     # (GET, PUT, DELETE)
     path('hospedes/<int:hospede_id>/', views.hospede_detail_view, name='hospede_detail_view'),
+
+    # --- Rotas Operacionais (Barcos e Passeios) ---
+    path('barcos/', views.barcos_view, name='barcos_view'),
+    path('tipos-passeio/', views.tipos_passeio_view, name='tipos_passeio_view'),
     
     # --- Rotas de Reservas (Gantt) ---
     

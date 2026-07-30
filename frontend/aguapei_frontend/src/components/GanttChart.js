@@ -5,15 +5,127 @@
  * Recebe quartos/reservas, transforma no formato `groups/items` exigido
  * pela biblioteca e aplica renderização customizada com ícones/cores.
  */
-import React from 'react';
-import Timeline, { TimelineMarkers, TodayMarker } from 'react-calendar-timeline';
+import React, { useMemo } from 'react';
+import Timeline, {
+  DateHeader,
+  SidebarHeader,
+  TimelineHeaders,
+  TimelineMarkers,
+  TodayMarker,
+} from 'react-calendar-timeline';
 import moment from 'moment';
 import 'moment/locale/pt-br';
+import dayjs from 'dayjs';
+import 'dayjs/locale/pt-br';
 import 'react-calendar-timeline/style.css';
 import './GanttChart.css';
 import { DollarSign, Clock, XCircle, AlertCircle } from 'react-feather';
 
 moment.locale('pt-br');
+dayjs.locale('pt-br');
+
+const capitalizeFirst = (value) => value.charAt(0).toUpperCase() + value.slice(1);
+const WEEKDAY_LABELS_SHORT = ['dom.', 'seg.', 'ter.', 'qua.', 'qui.', 'sex.', 'sáb.'];
+const MIN_COMPACT_DAY_LABEL_WIDTH = 24;
+const MIN_FULL_DAY_LABEL_WIDTH = 90;
+
+const toLocalizedMoment = (value) => moment(value?.valueOf ? value.valueOf() : value).locale('pt-br');
+
+const getHeaderLabelWidth = (interval, intervalProps) => {
+  const rawWidth = interval?.labelWidth ?? intervalProps?.style?.width ?? 0;
+  const numericWidth = typeof rawWidth === 'number' ? rawWidth : Number.parseFloat(String(rawWidth));
+
+  return Number.isFinite(numericWidth) ? numericWidth : 0;
+};
+
+const formatMonthHeader = ([startTime], unit, labelWidth = 0) => {
+  const localizedStart = startTime.locale('pt-br');
+
+  if (unit === 'year') {
+    return localizedStart.format('YYYY');
+  }
+
+  if (labelWidth < 70) {
+    return capitalizeFirst(localizedStart.format('MMM').replace('.', ''));
+  }
+
+  if (labelWidth < 150) {
+    return capitalizeFirst(localizedStart.format('MMM YYYY').replace('.', ''));
+  }
+
+  return capitalizeFirst(localizedStart.format('MMMM [de] YYYY'));
+};
+
+const formatDayHeader = ([startTime], _unit, labelWidth = 0) => {
+  const localizedStart = toLocalizedMoment(startTime);
+
+  if (labelWidth < 34) {
+    return localizedStart.format('D');
+  }
+
+  return localizedStart.format('D');
+};
+
+const formatSecondaryHeader = ([startTime], unit, labelWidth = 0) => {
+  const localizedStart = toLocalizedMoment(startTime);
+
+  if (unit === 'day') {
+    return formatDayHeader([startTime], unit, labelWidth);
+  }
+
+  if (unit === 'month') {
+    const monthLabel = localizedStart.format('MMM').replace('.', '');
+    return labelWidth < 80
+      ? capitalizeFirst(monthLabel)
+      : capitalizeFirst(localizedStart.format('MMM YYYY').replace('.', ''));
+  }
+
+  if (unit === 'year') {
+    return localizedStart.format('YYYY');
+  }
+
+  return localizedStart.format('D');
+};
+
+const getWeekdayHeaderLabel = (date, labelWidth) =>
+  labelWidth >= MIN_FULL_DAY_LABEL_WIDTH ? date.format('dddd') : WEEKDAY_LABELS_SHORT[date.day()];
+
+const secondaryHeaderRenderer = ({ getIntervalProps, intervalContext }) => {
+  const { interval, intervalText } = intervalContext;
+  const { key, ...intervalProps } = getIntervalProps();
+  const localizedStart = toLocalizedMoment(interval.startTime);
+  const intervalHours = toLocalizedMoment(interval.endTime).diff(localizedStart, 'hours');
+  const isDayInterval = intervalHours <= 36;
+  const labelWidth = getHeaderLabelWidth(interval, intervalProps);
+  const isFullDayLabel = labelWidth >= MIN_FULL_DAY_LABEL_WIDTH;
+
+  return (
+    <div key={key} {...intervalProps} className="rct-dateHeader timeline-dateHeader-secondary">
+      {isDayInterval && labelWidth >= MIN_COMPACT_DAY_LABEL_WIDTH ? (
+        <span className={`timeline-day-label ${isFullDayLabel ? 'timeline-day-label-full' : ''}`}>
+          <span>{getWeekdayHeaderLabel(localizedStart, labelWidth)}</span>
+          <strong>{localizedStart.format('D')}</strong>
+        </span>
+      ) : (
+        <span>{intervalText}</span>
+      )}
+    </div>
+  );
+};
+
+const formatDate = (value) => moment(value).format('DD/MM/YYYY');
+
+const buildReservaTooltip = (reserva) => ([
+  `Reserva #${reserva.id_reserva || '-'}`,
+  `Hospede: ${reserva.nome_titular || 'Nao informado'}`,
+  `Quarto: ${reserva.numero_quarto || reserva.id_quarto || '-'}`,
+  `Barco: ${reserva.nome_barco || 'Nao informado'}`,
+  `Passeio: ${reserva.tipo_passeio || 'Nao informado'}`,
+  `Check-in: ${formatDate(reserva.checkin)}`,
+  `Checkout: ${formatDate(reserva.checkout)}`,
+  `Reserva: ${reserva.status_reserva || '-'}`,
+  `Pagamento: ${reserva.status_pagamento || '-'}`,
+].join('\n'));
 
 // =========================================================
 // 🔹 Processa dados vindos da API Django
@@ -29,8 +141,6 @@ moment.locale('pt-br');
  * @returns {{groups: Array, items: Array}} objeto pronto para o Timeline.
  */
 const processDataForTimeline = (quartosData = [], reservasData = []) => {
-  console.log("GanttChart.js [DEBUG]: Dados brutos recebidos:", { quartosData, reservasData });
-
   const groups = quartosData.map(q => ({
     id: q.id_quarto,
     title: `${q.numero} (${q.tipo_quarto})`,
@@ -65,16 +175,32 @@ const processDataForTimeline = (quartosData = [], reservasData = []) => {
         start_time: startTime,
         end_time: endTime,
         className: getStatusClass(r.status_reserva, r.status_pagamento),
+        checkin: r.checkin,
+        checkout: r.checkout,
+        id_reserva: r.id_reserva,
+        numero_quarto: r.numero_quarto,
         status_pagamento: r.status_pagamento || null,
         status_reserva: r.status_reserva || null,
+        titular,
+        tooltip: buildReservaTooltip(r),
       });
     } catch (error) {
       console.error(`Erro ao processar item ${index}:`, error);
     }
   });
 
-  console.log("GanttChart.js [DEBUG]: Dados processados:", { groups, items });
   return { groups, items };
+};
+
+const groupRenderer = ({ group }) => {
+  const [, numero = group.title, tipo = ''] = /^(.+?)\s*\((.+)\)$/.exec(group.title) || [];
+
+  return (
+    <div className="timeline-room">
+      <span className="timeline-room-number">{numero}</span>
+      {tipo && <span className="timeline-room-type">{tipo}</span>}
+    </div>
+  );
 };
 
 // =========================================================
@@ -87,7 +213,9 @@ const processDataForTimeline = (quartosData = [], reservasData = []) => {
  * @param {object} item - recebe os dados do Timeline (inclui payload extra).
  * @param {function} getItemProps - função da lib para obter props/estilos.
  */
-const itemRenderer = ({ item, getItemProps }) => {
+const itemRenderer = ({ item, itemContext, getItemProps }) => {
+  const isCompact = (itemContext?.dimensions?.width || 0) < 120;
+
   const getIcon = () => {
     if (item.status_reserva === 'Cancelada') return <XCircle className="item-icon" />;
     if (item.status_pagamento === 'Pago') return <DollarSign className="item-icon" />;
@@ -99,7 +227,8 @@ const itemRenderer = ({ item, getItemProps }) => {
 
   // Neutraliza line-height inline da biblioteca e garante altura total
   const itemProps = getItemProps({
-    className: item.className, // aplica cor/status
+    className: `${item.className} ${isCompact ? 'timeline-item-compact' : ''}`,
+    title: item.tooltip,
     style: {
       lineHeight: 'normal',     // evita vertical-align baseado em line-height
       display: 'block',         // mantém a estrutura
@@ -110,7 +239,7 @@ const itemRenderer = ({ item, getItemProps }) => {
     <div {...itemProps}>
       {/* Wrapper interno controlado: ocupa 100%, flex centralizado */}
       <div className="rct-item-content" style={{ height: '100%' }}>
-        <span className="d-inline-flex align-items-center gap-2">
+        <span className="timeline-item-label">
           {getIcon()}
           {item.title || 'Reserva sem título'}
         </span>
@@ -140,7 +269,10 @@ function GanttChart({
   onTimeChange,
   onItemClick,
   }) {
-  const { groups, items } = processDataForTimeline(quartosData, reservasData);
+  const { groups, items } = useMemo(
+    () => processDataForTimeline(quartosData, reservasData),
+    [quartosData, reservasData]
+  );
 
   return (
     <div className="timeline-container">
@@ -167,22 +299,39 @@ function GanttChart({
         stackItems
         canOverlap={false}
         onItemClick={onItemClick}
+        groupRenderer={groupRenderer}
         itemRenderer={itemRenderer}
       >
+        <TimelineHeaders>
+          <SidebarHeader>
+            {({ getRootProps }) => (
+              <div {...getRootProps({ style: { height: 60 } })} className="timeline-sidebar-header">
+                Quartos
+              </div>
+            )}
+          </SidebarHeader>
+          <DateHeader unit="primaryHeader" labelFormat={formatMonthHeader} />
+          <DateHeader labelFormat={formatSecondaryHeader} intervalRenderer={secondaryHeaderRenderer} />
+        </TimelineHeaders>
         <TimelineMarkers>
           <TodayMarker>
             {({ styles }) => (
               <div
+                className="timeline-today-marker"
                 style={{
                   ...styles,
-                  backgroundColor: 'rgba(220, 53, 69, 0.7)',
-                  width: '3px',
+                  width: '2px',
                 }}
               />
             )}
           </TodayMarker>
         </TimelineMarkers>
       </Timeline>
+      {items.length === 0 && (
+        <div className="timeline-empty-state">
+          Nenhuma reserva encontrada para os filtros atuais.
+        </div>
+      )}
     </div>
   );
 }

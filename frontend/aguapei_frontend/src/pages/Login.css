@@ -1,34 +1,89 @@
 .login-background {
-    background-color: #f8f9fa; /* Um cinza bem claro, como no protótipo */
+    align-items: center;
+    background:
+        linear-gradient(135deg, rgba(38, 82, 44, 0.08), rgba(15, 23, 42, 0.02)),
+        #f6f8fa;
+    display: flex;
     height: 100vh;
+    overflow: hidden;
     width: 100vw;
-    overflow: hidden; /* Evita barras de rolagem */
+}
+
+.login-background .container {
+    max-width: 100%;
 }
 
 .login-card {
+    border: 1px solid #d8dee6;
+    border-radius: 8px;
+    box-shadow: 0 20px 48px rgba(15, 23, 42, 0.14) !important;
+    max-width: 440px;
     width: 100%;
-    max-width: 400px;
-    border: none;
-    border-radius: 10px;
 }
 
-/* Cor principal (Verde) do seu protótipo */
+.login-card .card-body {
+    padding: 10px;
+}
+
+.login-logo {
+    height: auto;
+    margin-bottom: 12px;
+    width: 116px;
+}
+
+.login-card h3 {
+    color: #26522c !important;
+    font-size: 20px;
+    line-height: 1.25;
+    margin-bottom: 8px;
+}
+
+.login-card .text-muted {
+    color: #64748b !important;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.login-card .form-label {
+    color: #30332e;
+    display: block;
+    font-size: 13px;
+    font-weight: 800;
+    margin-bottom: 6px;
+    text-align: left;
+}
+
+.login-card .form-control {
+    border-color: #d8dee6;
+    border-radius: 6px;
+    min-height: 42px;
+}
+
+.login-card .form-control:focus {
+    border-color: #26522c;
+    box-shadow: 0 0 0 0.2rem rgba(38, 82, 44, 0.14);
+}
+
 .btn-entrar {
-    background-color: #26522c !important; /* Usamos !important para sobrescrever o Bootstrap */
+    background-color: #26522c !important;
     border-color: #26522c !important;
+    border-radius: 6px;
+    font-weight: 800;
+    min-height: 42px;
 }
 
-.btn-entrar:hover, .btn-entrar:focus {
-    background-color: #1a381f !important; /* Um verde um pouco mais escuro no hover */
+.btn-entrar:hover,
+.btn-entrar:focus {
+    background-color: #1a381f !important;
     border-color: #1a381f !important;
 }
 
-/* Cor do texto do seu protótipo */
-.form-label {
-    color: #30332e;
-}
+@media (max-width: 480px) {
+    .login-card {
+        margin: 0 14px;
+    }
 
-.login-logo{
-    width: 130px;                 /* ajuste livre */
-    height: auto; 
+    .login-card h3 {
+        font-size: 18px;
+    }
 }

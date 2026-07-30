@@ -459,15 +459,34 @@ function ReservaDetalhesModal({ show, handleClose, reservaId, onUpdateSuccess, o
         const diasOriginais = Math.max(1, moment(reserva.checkout).diff(moment(reserva.checkin), 'days'));
         const valorDiaria =
             diasOriginais > 0 ? Number(reserva.valor_total || 0) / diasOriginais : Number(reserva.valor_total || 0);
+        const checkinOriginal = reserva.checkin ? moment(reserva.checkin).format('YYYY-MM-DD') : '';
+        const checkoutOriginal = reserva.checkout ? moment(reserva.checkout).format('YYYY-MM-DD') : '';
+        const dataEmbarqueAtual = reserva.data_embarque
+            ? moment(reserva.data_embarque).format('YYYY-MM-DD')
+            : '';
+        const dataDesembarqueAtual = reserva.data_desembarque
+            ? moment(reserva.data_desembarque).format('YYYY-MM-DD')
+            : '';
+        const dataEmbarquePayload =
+            !dataEmbarqueAtual || dataEmbarqueAtual === checkinOriginal ? novoCheckin : dataEmbarqueAtual;
+        const dataDesembarquePayload =
+            !dataDesembarqueAtual || dataDesembarqueAtual === checkoutOriginal ? novoCheckout : dataDesembarqueAtual;
 
         const payload = {
             fk_hospede_id_hospede: reserva.id_titular,
             quartos: [reserva.id_quarto],
             checkin: novoCheckin,
             checkout: novoCheckout,
+            fk_barco: reserva.fk_barco || '',
+            fk_tipo_passeio: reserva.fk_tipo_passeio || '',
+            data_embarque: dataEmbarquePayload,
+            data_desembarque: dataDesembarquePayload,
+            local_embarque: reserva.local_embarque || '',
+            local_desembarque: reserva.local_desembarque || '',
             valor_total: Number((valorDiaria * diffDias).toFixed(2)),
             status_pagamento: reserva.status_pagamento || 'Pendente',
             observacao_reserva: reserva.observacao_reserva || '',
+            observacao_operacional: reserva.observacao_operacional || '',
             acompanhantes: (reserva.acompanhantes || []).map((a) => a.id_hospede),
         };
 
@@ -489,6 +508,10 @@ function ReservaDetalhesModal({ show, handleClose, reservaId, onUpdateSuccess, o
     const titularNome = reserva?.nome_titular || 'Hóspede';
     const quartoInfo = `${reserva?.numero_quarto || 'N/A'} (${reserva?.tipo_quarto || 'N/A'})`;
     const usuarioNome = reserva?.nome_usuario_criacao || 'Sistema';
+    const diasViagem =
+        reserva?.data_embarque && reserva?.data_desembarque
+            ? moment(reserva.data_desembarque).diff(moment(reserva.data_embarque), 'days') + 1
+            : 0;
 
     return (
         <>
@@ -605,6 +628,45 @@ function ReservaDetalhesModal({ show, handleClose, reservaId, onUpdateSuccess, o
                                         </span>
                                     </p>
                                 </div>
+                            </div>
+                            <div className="operacao-detalhes-box">
+                                <div className="operacao-detalhes-header">
+                                    <h5>Operação da Viagem</h5>
+                                    <span>{reserva.status_operacional || 'A Preparar'}</span>
+                                </div>
+                                <div className="operacao-detalhes-grid">
+                                    <p>
+                                        <strong>Barco</strong>
+                                        <span>{reserva.nome_barco || 'Não informado'}</span>
+                                    </p>
+                                    <p>
+                                        <strong>Passeio</strong>
+                                        <span>{reserva.tipo_passeio || 'Não informado'}</span>
+                                    </p>
+                                    <p>
+                                        <strong>Embarque</strong>
+                                        <span>
+                                            {formatDate(reserva.data_embarque)}
+                                            {reserva.local_embarque ? ` - ${reserva.local_embarque}` : ''}
+                                        </span>
+                                    </p>
+                                    <p>
+                                        <strong>Desembarque</strong>
+                                        <span>
+                                            {formatDate(reserva.data_desembarque)}
+                                            {reserva.local_desembarque ? ` - ${reserva.local_desembarque}` : ''}
+                                        </span>
+                                    </p>
+                                    <p>
+                                        <strong>Duração</strong>
+                                        <span>{diasViagem > 0 ? `${diasViagem} dias` : 'Não informada'}</span>
+                                    </p>
+                                </div>
+                                {reserva.observacao_operacional && (
+                                    <p className="operacao-observacao">
+                                        <strong>Observações operacionais:</strong> {reserva.observacao_operacional}
+                                    </p>
+                                )}
                             </div>
                             <hr />
                             <h5>Observações</h5>

@@ -9,7 +9,7 @@
     flex-shrink: 0;
     /* Impede que o menu encolha */
 
-    /* A transição agora é na LARGURA */
+    /* A transição é na LARGURA */
     transition: width 0.3s ease-in-out;
 }
 
@@ -45,6 +45,12 @@
     white-space: nowrap;
     /* Impede quebra de linha */
     overflow: hidden;
+}
+
+.sidebar-logo {
+    width: 45px;
+    height: 45px;
+    margin-right: 10px;
 }
 
 .sidebar-toggle-btn {

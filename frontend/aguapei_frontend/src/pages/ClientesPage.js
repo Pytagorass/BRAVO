@@ -9,6 +9,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Spinner, Alert, Button, ButtonGroup, Form, Pagination, InputGroup } from 'react-bootstrap';
 import { toast } from 'react-toastify';
+import { Edit2, Search, UserPlus, UserX, RotateCcw, X } from 'react-feather';
 
 import { fetchHospedes, deleteHospede, updateHospedeStatus } from '../services/api';
 import ClienteModal from '../components/ClienteModal';
@@ -161,6 +162,8 @@ const ClientesPage = () => {
   const paginaAtual = Math.min(currentPage, totalPages);
   const inicio = (paginaAtual - 1) * ITEMS_PER_PAGE;
   const clientesPagina = clientesFiltrados.slice(inicio, inicio + ITEMS_PER_PAGE);
+  const clientesBrasil = clientesFiltrados.filter((cliente) => cliente.pais_origem === 'Brasil').length;
+  const clientesExterior = Math.max(clientesFiltrados.length - clientesBrasil, 0);
 
   const handleSearchChange = (event) => {
     setSearchTerm(event.target.value);
@@ -207,8 +210,9 @@ const ClientesPage = () => {
     }
 
     return (
-      <div className="table-responsive">
-        <table className="table table-striped table-hover align-middle">
+      <div className="clientes-table-shell">
+        <div className="table-responsive">
+        <table className="table table-hover align-middle app-data-table">
           <thead>
             <tr>
               <th>Nome</th>
@@ -223,13 +227,15 @@ const ClientesPage = () => {
               <tr key={cliente.id_hospede}>
                 <td>{cliente.nome_hospede}</td>
                 <td>
-                  {cliente.email_hospede || 'Sem email'}
+                  <span className="table-main-text">{cliente.email_hospede || 'Sem email'}</span>
                   <br />
                   <small className="text-muted">
                     {cliente.telefone || 'Sem telefone'}
                   </small>
                 </td>
-                <td>{cliente.pais_origem}</td>
+                <td>
+                  <span className="table-soft-pill">{cliente.pais_origem}</span>
+                </td>
                 <td>
                   {cliente.pais_origem === 'Brasil'
                     ? `CPF: ${cliente.cpf || 'N/A'}`
@@ -238,21 +244,24 @@ const ClientesPage = () => {
                 <td>
                   {viewStatus === 'Ativo' ? (
                     <>
-                      <Button
-                        size="sm"
-                        variant="outline-secondary"
-                        onClick={() => handleShowEditarCliente(cliente)}
-                      >
-                        Editar
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline-danger"
-                        className="ms-2"
-                        onClick={() => handleShowInativar(cliente)}
-                      >
-                        Inativar
-                      </Button>
+                      <div className="table-action-group">
+                        <Button
+                          size="sm"
+                          variant="outline-secondary"
+                          onClick={() => handleShowEditarCliente(cliente)}
+                        >
+                          <Edit2 size={14} />
+                          Editar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline-danger"
+                          onClick={() => handleShowInativar(cliente)}
+                        >
+                          <UserX size={14} />
+                          Inativar
+                        </Button>
+                      </div>
                     </>
                   ) : (
                     <Button
@@ -260,6 +269,7 @@ const ClientesPage = () => {
                       variant="outline-success"
                       onClick={() => handleReativar(cliente)}
                     >
+                      <RotateCcw size={14} />
                       Reativar
                     </Button>
                   )}
@@ -268,7 +278,8 @@ const ClientesPage = () => {
             ))}
           </tbody>
         </table>
-        <div className="d-flex justify-content-between align-items-center flex-wrap mt-3">
+        </div>
+        <div className="table-footer">
           <small className="text-muted">
             Mostrando {clientesPagina.length ? inicio + 1 : 0}-
             {Math.min(inicio + clientesPagina.length, clientesFiltrados.length)} de {clientesFiltrados.length}
@@ -295,8 +306,11 @@ const ClientesPage = () => {
   return (
     <div className="clientes-page">
       <div className="page-header">
-        <h1>Gerenciamento de Clientes</h1>
-        <div className="d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div className="page-title-block">
+          <h1>Gerenciamento de Clientes</h1>
+          <span className="page-title-meta">Cadastro, documentos e status dos hóspedes</span>
+        </div>
+        <div className="clientes-toolbar">
           <ButtonGroup className="me-2">
             <Button
               variant={viewStatus === 'Ativo' ? 'success' : 'outline-secondary'}
@@ -319,14 +333,18 @@ const ClientesPage = () => {
 
           <Button
             variant="primary"
-            style={{ backgroundColor: '#26522c', borderColor: '#26522c' }}
+            className="page-primary-action"
             onClick={handleShowNovoCliente}
             disabled={viewStatus === 'Inativo'}
           >
-            + Novo Cliente
+            <UserPlus size={16} />
+            Novo Cliente
           </Button>
 
-          <InputGroup style={{ minWidth: '260px' }}>
+          <InputGroup className="clientes-search">
+            <InputGroup.Text>
+              <Search size={16} />
+            </InputGroup.Text>
             <Form.Control
               type="text"
               placeholder="Buscar por nome ou país"
@@ -338,9 +356,29 @@ const ClientesPage = () => {
               onClick={handleClearSearch}
               disabled={!searchTerm}
             >
+              <X size={14} />
               Limpar
             </Button>
           </InputGroup>
+        </div>
+      </div>
+
+      <div className="page-summary-grid clientes-summary-grid">
+        <div className="summary-card">
+          <span className="summary-label">Visualização</span>
+          <strong>{viewStatus}</strong>
+        </div>
+        <div className="summary-card">
+          <span className="summary-label">Resultados</span>
+          <strong>{clientesFiltrados.length}</strong>
+        </div>
+        <div className="summary-card">
+          <span className="summary-label">Brasil</span>
+          <strong>{clientesBrasil}</strong>
+        </div>
+        <div className="summary-card">
+          <span className="summary-label">Exterior</span>
+          <strong>{clientesExterior}</strong>
         </div>
       </div>
 

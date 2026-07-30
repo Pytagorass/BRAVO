@@ -19,3 +19,51 @@
     font-weight: bold;
     margin-left: 10px;
 }
+
+.operacao-viagem-section {
+    background: #f8fafc;
+    border: 1px solid #d8dee6;
+    border-radius: 8px;
+    margin: 18px 0;
+    padding: 16px;
+}
+
+.operacao-viagem-header {
+    align-items: flex-start;
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+
+.operacao-viagem-header h5 {
+    color: #111827;
+    font-size: 16px;
+    font-weight: 800;
+    margin: 0;
+}
+
+.operacao-viagem-header p {
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 600;
+    margin: 4px 0 0;
+}
+
+.dias-viagem-pill {
+    background: #e8f3ec;
+    border: 1px solid #b8d8c2;
+    border-radius: 999px;
+    color: #26522c;
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+    padding: 8px 10px;
+}
+
+@media (max-width: 576px) {
+    .operacao-viagem-header {
+        flex-direction: column;
+    }
+}

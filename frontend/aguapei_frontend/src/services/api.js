@@ -94,6 +94,11 @@ export const updateUsuarioPerfil = (perfilData) => apiClient.put('/perfil/', per
 export const fetchIndicadoresGestao = (ano) => apiClient.get('/gestao/indicadores/', { params: { ano } });
 export const fetchReservasPendentesGestao = () => apiClient.get('/gestao/reservas-pendentes/');
 
+// --- OPERACAO DE VIAGEM ---
+export const fetchBarcos = (params = {}) =>
+  apiClient.get('/barcos/', { params: { status: 'Disponível', ...params } });
+export const fetchTiposPasseio = (ativo = 'Ativo') => apiClient.get('/tipos-passeio/', { params: { ativo } });
+
 // --- AGENDA E RESERVAS ---
 export const fetchAgendaReservas = () => apiClient.get('/agenda/');
 export const fetchReservaDetalhes = (reservaQuartoId) => apiClient.get(`/agenda/detalhes/${reservaQuartoId}/`);

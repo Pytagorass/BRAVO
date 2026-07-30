@@ -1,149 +1,357 @@
-/* 1. O 'fix' essencial para a altura */
 .timeline-container {
-  min-height: 80vh;
-  /* 80% da altura da tela */
+  --agenda-border: #d8dee6;
+  --agenda-grid: #e6eaf0;
+  --agenda-grid-strong: #c6ced8;
+  --agenda-text: #1f2937;
+  --agenda-muted: #64748b;
+  --agenda-primary: #26522c;
+  --agenda-primary-dark: #1b3b20;
+  --agenda-weekend: #f8f5ec;
+  --agenda-row: #ffffff;
+  --agenda-row-alt: #f6f8fa;
+
+  width: 100%;
+  max-width: 100%;
+  overflow: auto;
+  position: relative;
+  background: #ffffff;
+  border: 1px solid var(--agenda-border);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
 }
 
-/* --- 2. AJUSTES GERAIS DO GRÁFICO --- */
-
-/* Altera a cor da linha do tempo (hoje) */
-.rct-date-marker-line {
-  background-color: #dc3545;
-  /* Vermelho */
+.timeline-container .react-calendar-timeline {
+  color: var(--agenda-text);
+  font-size: 13px;
 }
 
-/* Estiliza o cabeçalho (dias, meses) */
-.rct-header-root {
-  background-color: #f8f9fa;
-  border-bottom: 1px solid #ddd;
+.timeline-container .rct-header-root {
+  background: #ffffff;
+  border-bottom: 1px solid var(--agenda-border);
 }
 
-/* Estiliza a barra lateral (nomes dos quartos) */
-.rct-sidebar {
-  background-color: #ffffff;
-  border-right: 1px solid #ddd;
+.timeline-container .rct-sidebar-header {
+  background: var(--agenda-primary);
+  border-right: 1px solid var(--agenda-primary-dark);
+  border-bottom: 1px solid var(--agenda-primary-dark);
 }
 
-.rct-sidebar-group {
-  border-bottom: 1px solid #eee;
+.timeline-sidebar-header {
+  align-items: center;
+  background: var(--agenda-primary);
+  color: #ffffff;
+  display: flex;
+  font-size: 13px;
+  font-weight: 800;
+  justify-content: center;
 }
 
-.rct-sidebar-group:last-child {
+.timeline-container .rct-dateHeader-primary {
+  align-items: center;
+  background: var(--agenda-primary) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.18);
+  color: #ffffff !important;
+  display: flex;
+  font-size: 13px;
+  font-weight: 700;
+  justify-content: center;
+  letter-spacing: 0;
+  text-transform: capitalize;
+}
+
+.timeline-container .rct-dateHeader {
+  align-items: center;
+  background: #ffffff;
+  border-color: var(--agenda-border);
+  color: var(--agenda-muted);
+  display: flex;
+  font-size: 12px;
+  font-weight: 600;
+  justify-content: center;
+}
+
+.timeline-day-label {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  justify-content: center;
+  line-height: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-align: center;
+  width: 100%;
+}
+
+.timeline-day-label span {
+  color: #64748b;
+  display: block;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-day-label strong {
+  color: #334155;
+  display: block;
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.timeline-day-label-full span {
+  font-size: 12px;
+}
+
+.timeline-day-label-full strong {
+  font-size: 13px;
+}
+
+.timeline-container .rct-calendar-header {
+  border-color: var(--agenda-border);
+}
+
+.timeline-container .rct-vertical-lines .rct-vl {
+  border-left: 1px solid var(--agenda-grid);
+}
+
+.timeline-container .rct-vertical-lines .rct-vl-first {
+  border-left-color: var(--agenda-grid-strong);
+}
+
+.timeline-container .rct-vertical-lines .rct-vl-weekend {
+  background: var(--agenda-weekend);
+}
+
+.timeline-container .rct-horizontal-lines .rct-hl-even {
+  background: var(--agenda-row);
+  border-bottom: 1px solid var(--agenda-grid);
+}
+
+.timeline-container .rct-horizontal-lines .rct-hl-odd {
+  background: var(--agenda-row-alt);
+  border-bottom: 1px solid var(--agenda-grid);
+}
+
+.timeline-container .rct-sidebar {
+  background: #ffffff;
+  border-right: 1px solid var(--agenda-grid-strong);
+}
+
+.timeline-container .rct-sidebar-group {
+  border-bottom: 1px solid var(--agenda-grid);
+}
+
+.timeline-container .rct-sidebar-group:last-child {
   border-bottom: none;
 }
 
-/* Ajusta o alinhamento do texto do quarto */
-.rct-sidebar-row {
-  padding-top: 10px;
-  padding-bottom: 10px;
-  height: 100% !important;
-  display: flex;
+.timeline-container .rct-sidebar-row {
   align-items: center;
+  display: flex;
+  height: 100% !important;
+  padding: 0 14px;
 }
 
-/* --- 3. CORES DAS BARRAS DE RESERVA (DO PROTÓTIPO) --- */
-/* Usamos !important para garantir que sobrescrevemos os estilos da biblioteca */
+.timeline-room {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
 
-/* Verde Escuro (Pago) */
+.timeline-room-number {
+  color: #111827;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.timeline-room-type {
+  background: #edf4ef;
+  border: 1px solid #d6e5da;
+  border-radius: 999px;
+  color: #315a38;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  max-width: 94px;
+  overflow: hidden;
+  padding: 4px 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-container .rct-item {
+  border-radius: 6px !important;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.14);
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.15s ease, filter 0.15s ease;
+}
+
+.timeline-container .rct-item:hover {
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.2);
+  filter: saturate(1.06);
+  transform: translateY(-1px);
+}
+
+.timeline-container .rct-item.timeline-item-compact .rct-item-content {
+  justify-content: center !important;
+  padding: 0;
+}
+
+.timeline-container .rct-item.timeline-item-compact .timeline-item-label {
+  font-size: 0;
+  justify-content: center;
+}
+
+.timeline-container .rct-item-content {
+  align-items: center !important;
+  display: flex !important;
+  font-size: 12px;
+  font-weight: 700;
+  height: 100% !important;
+  justify-content: flex-start !important;
+  overflow: hidden;
+  padding: 0 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-item-label {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item-icon {
+  flex: 0 0 auto;
+  height: 14px;
+  width: 14px;
+}
+
+.timeline-today-marker {
+  background: #e11d48;
+  box-shadow: 0 0 0 1px rgba(225, 29, 72, 0.2);
+  z-index: 40;
+}
+
+.timeline-today-marker::before {
+  background: #e11d48;
+  border-radius: 999px;
+  color: #ffffff;
+  content: "Hoje";
+  font-size: 10px;
+  font-weight: 800;
+  left: 5px;
+  line-height: 1;
+  padding: 4px 6px;
+  position: absolute;
+  top: 4px;
+  white-space: nowrap;
+}
+
+.timeline-empty-state {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #d8dee6;
+  border-radius: 8px;
+  color: #425466;
+  font-size: 14px;
+  font-weight: 700;
+  left: calc(50% + 100px);
+  padding: 12px 16px;
+  pointer-events: none;
+  position: absolute;
+  top: 112px;
+  transform: translateX(-50%);
+  z-index: 30;
+}
+
 .rct-item.item-pago {
   background-color: #26522c !important;
   border: 1px solid #1a381f !important;
-  color: white !important;
+  color: #ffffff !important;
 }
 
 .rct-item.item-pago:hover {
   background-color: #1a381f !important;
 }
 
-/* Verde Sucesso (Ativa / Check-in feito) */
 .rct-item.item-ativo {
   background-color: #198754 !important;
   border: 1px solid #146c43 !important;
-  color: white !important;
+  color: #ffffff !important;
 }
 
 .rct-item.item-ativo:hover {
   background-color: #146c43 !important;
 }
 
-/* Amarelo (Pendente) */
 .rct-item.item-pendente {
-  background-color: #ffc107 !important;
-  border: 1px solid #e0a800 !important;
-  color: #333 !important;
-  /* Texto escuro para leitura */
+  background-color: #f2c94c !important;
+  border: 1px solid #d1a825 !important;
+  color: #2b2a1f !important;
 }
 
 .rct-item.item-pendente:hover {
-  background-color: #e0a800 !important;
+  background-color: #e0b83a !important;
 }
 
-/* Azul (Em Partes) */
 .rct-item.item-em-partes {
-  background-color: #0dcaf0 !important;
-  border: 1px solid #0b99b8 !important;
-  color: white !important;
+  background-color: #0f7ea0 !important;
+  border: 1px solid #0a607a !important;
+  color: #ffffff !important;
 }
 
 .rct-item.item-em-partes:hover {
-  background-color: #0b99b8 !important;
+  background-color: #0a607a !important;
 }
 
-/* Vermelho (Cancelado) */
 .rct-item.item-cancelado {
   background-color: #dc3545 !important;
   border: 1px solid #b02a37 !important;
-  color: white !important;
+  color: #ffffff !important;
 }
 
 .rct-item.item-cancelado:hover {
   background-color: #b02a37 !important;
 }
 
-
-/* --- 4. ESTILOS DOS ÍCONES DENTRO DAS BARRAS --- */
-
-/* Ajusta o conteúdo para alinhar ícone e texto */
-.rct-item-content {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  /* centraliza horizontalmente */
-  height: 100% !important;
-  /* ocupa a altura da barra */
-  padding: 0 8px;
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Estilo para o ícone (react-feather) */
-.item-icon {
-  margin-right: 6px;
-  /* Espaçamento entre o ícone e o texto */
-  width: 14px;
-  height: 14px;
-}
-
 .item-pago .item-icon,
-.item-ativo .item-icon {
-  stroke: #FFFFFF !important;
-}
-
-/* * Para garantir que os outros ícones também tenham
- * a cor certa de acordo com seus fundos.
-*/
-.item-pendente .item-icon {
-  stroke: #333333 !important;
-  /* Força o relógio (fundo amarelo) a ser escuro */
-}
-
+.item-ativo .item-icon,
 .item-em-partes .item-icon,
 .item-cancelado .item-icon {
-  stroke: #FFFFFF !important;
-  /* Força os ícones (fundo azul/vermelho) a serem brancos */
+  stroke: #ffffff !important;
 }
 
+.item-pendente .item-icon {
+  stroke: #2b2a1f !important;
+}
 
+@media (max-width: 768px) {
+  .timeline-container .react-calendar-timeline {
+    font-size: 12px;
+  }
 
+  .timeline-container .rct-sidebar-row {
+    padding: 0 10px;
+  }
+
+  .timeline-room {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .timeline-room-type {
+    max-width: 78px;
+  }
+}

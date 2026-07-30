@@ -5,7 +5,7 @@
  * timeline (quartos/reservas), controle das janelas de tempo e abertura
  * dos modais de criação/edição e detalhes.
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { fetchAgendaReservas, fetchQuartos } from '../services/api';
 import GanttChart from '../components/GanttChart';
 import NovaReservaModal from '../components/NovaReservaModal';
@@ -14,9 +14,19 @@ import { Spinner, Alert, Button } from 'react-bootstrap';
 import moment from 'moment';
 import 'moment/locale/pt-br';
 import LegendaGantt from '../components/LegendaGantt';
-import { HelpCircle } from 'react-feather';
+import { ChevronLeft, ChevronRight, HelpCircle, Plus } from 'react-feather';
+import './AgendaDashboard.css';
 
 moment.locale('pt-br');
+
+const FILTROS_RESERVA = [
+    { id: 'todas', label: 'Todas' },
+    { id: 'pendentes', label: 'Pendentes' },
+    { id: 'pagas', label: 'Pagas' },
+    { id: 'em-partes', label: 'Em partes' },
+    { id: 'ativas', label: 'Ativas' },
+    { id: 'canceladas', label: 'Canceladas' },
+];
 
 /**
  * Controle principal da Agenda. Mantém os estados relacionados ao Gantt,
@@ -41,6 +51,24 @@ const AgendaDashboard = () => {
     const [selectedReservaId, setSelectedReservaId] = useState(null);
     const [reservaParaEditar, setReservaParaEditar] = useState(null);
     const [showLegenda, setShowLegenda] = useState(false);
+    const [filtroReserva, setFiltroReserva] = useState('todas');
+
+    const reservasFiltradas = useMemo(() => {
+        switch (filtroReserva) {
+            case 'pendentes':
+                return reservas.filter((reserva) => reserva.status_pagamento === 'Pendente');
+            case 'pagas':
+                return reservas.filter((reserva) => reserva.status_pagamento === 'Pago');
+            case 'em-partes':
+                return reservas.filter((reserva) => reserva.status_pagamento === 'Em Partes');
+            case 'ativas':
+                return reservas.filter((reserva) => reserva.status_reserva === 'Ativa');
+            case 'canceladas':
+                return reservas.filter((reserva) => reserva.status_reserva === 'Cancelada');
+            default:
+                return reservas;
+        }
+    }, [reservas, filtroReserva]);
 
     /**
      * Busca os dados necessários para montar o Gantt (quartos + reservas) em paralelo.
@@ -78,9 +106,29 @@ const AgendaDashboard = () => {
      * @param {number} start - timestamp inicial em milissegundos.
      * @param {number} end - timestamp final em milissegundos.
      */
-    const handleTimeChange = (start, end) => {
+    const handleTimeChange = (start, end, updateScrollCanvas) => {
+        if (typeof updateScrollCanvas === 'function') {
+            updateScrollCanvas(start, end);
+        }
         setVisibleTimeStart(start);
         setVisibleTimeEnd(end);
+    };
+
+    const handleChangeMonth = (monthMoment) => {
+        setVisibleTimeStart(monthMoment.clone().startOf('month').valueOf());
+        setVisibleTimeEnd(monthMoment.clone().endOf('month').valueOf());
+    };
+
+    const handlePreviousMonth = () => {
+        handleChangeMonth(moment(visibleTimeStart).subtract(1, 'month'));
+    };
+
+    const handleCurrentMonth = () => {
+        handleChangeMonth(moment());
+    };
+
+    const handleNextMonth = () => {
+        handleChangeMonth(moment(visibleTimeStart).add(1, 'month'));
     };
 
     /**
@@ -189,43 +237,96 @@ const AgendaDashboard = () => {
         }
 
         return (
-            <div style={{ position: 'relative' }}>
+            <div className="agenda-timeline-shell">
+                {showLegenda && <LegendaGantt />}
                 <GanttChart
                     quartosData={quartos}
-                    reservasData={reservas}
+                    reservasData={reservasFiltradas}
                     visibleTimeStart={visibleTimeStart}
                     visibleTimeEnd={visibleTimeEnd}
                     onTimeChange={handleTimeChange}
                     onItemClick={handleItemClick}
                 />
-                {showLegenda && <LegendaGantt />}
             </div>
         );
     };
 
+    const periodoAtual = moment(visibleTimeStart).format('MMMM [de] YYYY');
+    const totalReservasLabel = reservasFiltradas.length === reservas.length
+        ? `${reservas.length} reservas`
+        : `${reservasFiltradas.length}/${reservas.length} reservas`;
+
     return (
         <div className="agenda-dashboard">
-            <div className="page-header d-flex justify-content-between align-items-center">
+            <div className="page-header">
+                <div className="agenda-title-block">
                 <h1>Agenda Aguapé</h1>
+                    <span className="agenda-title-meta">{periodoAtual}</span>
+                </div>
             </div>
-            <div className="page-actions mb-3">
-                <Button
-                    variant="outline-secondary"
-                    className="me-2"
-                    onClick={() => setShowLegenda(!showLegenda)}
-                    title={showLegenda ? 'Esconder Legenda' : 'Mostrar Legenda'}
-                >
-                    <HelpCircle size={16} className="me-1" />
-                    {showLegenda ? 'Esconder' : 'Ver'} Legenda
-                </Button>
+            <div className="agenda-toolbar">
+                <div className="agenda-actions">
+                    <div className="agenda-month-nav" aria-label="Navegacao do calendario">
+                        <Button
+                            variant="outline-secondary"
+                            className="agenda-icon-action"
+                            onClick={handlePreviousMonth}
+                            title="Mes anterior"
+                        >
+                            <ChevronLeft size={16} />
+                        </Button>
+                        <Button
+                            variant="outline-secondary"
+                            className="agenda-secondary-action"
+                            onClick={handleCurrentMonth}
+                        >
+                            Hoje
+                        </Button>
+                        <Button
+                            variant="outline-secondary"
+                            className="agenda-icon-action"
+                            onClick={handleNextMonth}
+                            title="Proximo mes"
+                        >
+                            <ChevronRight size={16} />
+                        </Button>
+                    </div>
 
-                <Button
-                    variant="primary"
-                    onClick={handleAbrirModalCriacao}
-                    style={{ backgroundColor: '#26522c', borderColor: '#26522c' }}
-                >
-                    + Nova Reserva
-                </Button>
+                    <Button
+                        variant="outline-secondary"
+                        className="agenda-secondary-action"
+                        onClick={() => setShowLegenda(!showLegenda)}
+                        title={showLegenda ? 'Esconder Legenda' : 'Mostrar Legenda'}
+                    >
+                        <HelpCircle size={16} />
+                        {showLegenda ? 'Esconder' : 'Ver'} Legenda
+                    </Button>
+
+                    <Button
+                        variant="primary"
+                        className="agenda-primary-action"
+                        onClick={handleAbrirModalCriacao}
+                    >
+                        <Plus size={16} />
+                        Nova Reserva
+                    </Button>
+                </div>
+                <div className="agenda-period-summary">
+                    <span className="agenda-chip">{quartos.length} quartos</span>
+                    <span className="agenda-chip">{totalReservasLabel}</span>
+                </div>
+            </div>
+            <div className="agenda-filter-bar" aria-label="Filtros de reservas">
+                {FILTROS_RESERVA.map((filtro) => (
+                    <button
+                        key={filtro.id}
+                        type="button"
+                        className={`agenda-filter-chip ${filtroReserva === filtro.id ? 'active' : ''}`}
+                        onClick={() => setFiltroReserva(filtro.id)}
+                    >
+                        {filtro.label}
+                    </button>
+                ))}
             </div>
 
             <div className="page-content">{renderContent()}</div>

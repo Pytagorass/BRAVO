@@ -57,6 +57,21 @@ function ReservaConfirmModal({
                         <strong>{formatData(confirmData.checkout)}</strong>
                     </div>
                     <div className="resumo-item">
+                        <span>Barco:</span>
+                        <strong>{confirmData.barcoNome || 'N/A'}</strong>
+                    </div>
+                    <div className="resumo-item">
+                        <span>Passeio:</span>
+                        <strong>{confirmData.tipoPasseioNome || 'N/A'}</strong>
+                    </div>
+                    <div className="resumo-item">
+                        <span>Viagem:</span>
+                        <strong>
+                            {formatData(confirmData.data_embarque)} a {formatData(confirmData.data_desembarque)}
+                            {confirmData.diasViagem ? ` (${confirmData.diasViagem} dias)` : ''}
+                        </strong>
+                    </div>
+                    <div className="resumo-item">
                         <span>Status Pagamento:</span>
                         <strong className={`status-${confirmData.status_pagamento.toLowerCase()}`}>
                             {confirmData.status_pagamento}

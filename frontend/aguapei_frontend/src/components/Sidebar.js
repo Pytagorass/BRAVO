@@ -65,6 +65,11 @@ function Sidebar({ handleLogout }) {
         <>
             <aside className={`sidebar ${!isOpen ? 'closed' : ''}`}>
                 <div className="sidebar-header">
+                    <img
+                        src='/LogoBravo.ico'
+                        alt='Logo Bravo'
+                        className="sidebar-logo"
+                    />
                     <h2 className="sidebar-title" style={{ display: isOpen ? 'block' : 'none' }}>
                         BRAVO
                     </h2>

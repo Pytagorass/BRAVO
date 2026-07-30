@@ -120,6 +120,162 @@ def error_response(message, code="ERRO_INTERNO", status_code=400, details=None):
         status=status_code
     )
 
+
+def _parse_required_int(data, field_name, message, code="VALIDATION_ERROR"):
+    try:
+        value = data.get(field_name)
+        if value in (None, ''):
+            raise ValueError
+        return int(value), None
+    except (TypeError, ValueError):
+        return None, error_response(message, code, 400)
+
+
+def _parse_required_date(data, field_name, message):
+    value = data.get(field_name)
+    if not value:
+        return None, error_response(message, 'DATAS_OPERACAO_INVALIDAS', 400)
+
+    try:
+        return datetime.datetime.strptime(value, "%Y-%m-%d").date(), None
+    except (TypeError, ValueError):
+        return None, error_response('Formato de data invalido. Use YYYY-MM-DD.', 'DATAS_OPERACAO_INVALIDAS', 400)
+
+
+def _validar_operacao_reserva(cursor, data, acompanhante_ids, reserva_id_atual=None):
+    barco_id, error = _parse_required_int(
+        data,
+        'fk_barco',
+        'Selecione um barco para a reserva.',
+        'BARCO_OBRIGATORIO'
+    )
+    if error:
+        return None, error
+
+    tipo_passeio_id, error = _parse_required_int(
+        data,
+        'fk_tipo_passeio',
+        'Selecione o tipo de passeio da reserva.',
+        'TIPO_PASSEIO_OBRIGATORIO'
+    )
+    if error:
+        return None, error
+
+    data_embarque, error = _parse_required_date(
+        data,
+        'data_embarque',
+        'Data de embarque e obrigatoria.'
+    )
+    if error:
+        return None, error
+
+    data_desembarque, error = _parse_required_date(
+        data,
+        'data_desembarque',
+        'Data de desembarque e obrigatoria.'
+    )
+    if error:
+        return None, error
+
+    if data_desembarque < data_embarque:
+        return None, error_response(
+            'Data de desembarque deve ser igual ou posterior ao embarque.',
+            'DATAS_OPERACAO_INVALIDAS',
+            400
+        )
+
+    cursor.execute(
+        """
+        SELECT nome_barco, capacidade_pessoas, status_barco
+        FROM barco
+        WHERE id_barco = %s
+        FOR UPDATE;
+        """,
+        [barco_id]
+    )
+    barco = cursor.fetchone()
+    if not barco:
+        return None, error_response('Barco nao encontrado.', 'BARCO_NOT_FOUND', 404)
+
+    nome_barco, capacidade_pessoas, status_barco = barco
+    if status_barco != 'Disponível':
+        return None, error_response(
+            'Este barco nao esta disponivel para reserva.',
+            'BARCO_INDISPONIVEL',
+            409,
+            {'nome_barco': nome_barco, 'status_barco': status_barco}
+        )
+
+    total_pessoas = 1 + len(acompanhante_ids)
+    if total_pessoas > capacidade_pessoas:
+        return None, error_response(
+            'A quantidade de pessoas excede a capacidade do barco.',
+            'CAPACIDADE_BARCO_EXCEDIDA',
+            409,
+            {
+                'nome_barco': nome_barco,
+                'capacidade_pessoas': capacidade_pessoas,
+                'total_pessoas': total_pessoas
+            }
+        )
+
+    cursor.execute(
+        """
+        SELECT nome_tipo
+        FROM tipo_passeio
+        WHERE id_tipo_passeio = %s AND ativo = 'Ativo';
+        """,
+        [tipo_passeio_id]
+    )
+    tipo_passeio = cursor.fetchone()
+    if not tipo_passeio:
+        return None, error_response('Tipo de passeio nao encontrado ou inativo.', 'TIPO_PASSEIO_INVALIDO', 404)
+
+    params_conflito = [barco_id, data_embarque, data_desembarque]
+    filtro_reserva_atual = ""
+    if reserva_id_atual:
+        filtro_reserva_atual = "AND r.id_reserva != %s"
+        params_conflito.append(reserva_id_atual)
+
+    sql_conflito_barco = f"""
+        SELECT
+            r.id_reserva,
+            r.data_embarque,
+            r.data_desembarque,
+            h.nome_hospede AS nome_titular_conflito
+        FROM reserva r
+        LEFT JOIN hospede h ON r.fk_hospede_titular = h.id_hospede
+        WHERE r.fk_barco = %s
+          AND r.status_reserva != 'Cancelada'
+          AND r.data_embarque IS NOT NULL
+          AND r.data_desembarque IS NOT NULL
+          AND daterange(r.data_embarque, r.data_desembarque + 1, '[)')
+              && daterange(%s::date, %s::date + 1, '[)')
+          {filtro_reserva_atual}
+        LIMIT 1;
+    """
+    cursor.execute(sql_conflito_barco, params_conflito)
+    conflito_barco = dictfetchall(cursor)
+    if conflito_barco:
+        return None, error_response(
+            'Este barco ja esta reservado no periodo da viagem.',
+            'BARCO_OVERBOOK',
+            409,
+            conflito_barco[0]
+        )
+
+    return {
+        'fk_barco': barco_id,
+        'fk_tipo_passeio': tipo_passeio_id,
+        'data_embarque': data_embarque,
+        'data_desembarque': data_desembarque,
+        'local_embarque': data.get('local_embarque') or None,
+        'local_desembarque': data.get('local_desembarque') or None,
+        'observacao_operacional': data.get('observacao_operacional') or None,
+        'nome_barco': nome_barco,
+        'tipo_passeio': tipo_passeio[0],
+    }, None
+
 # =======================================================================
 # 3. VIEWS DA API (Endpoints)
 # =======================================================================
@@ -223,9 +379,18 @@ def get_agenda_reservas(request):
             r.id_reserva, 
             r.status_reserva, 
             r.status_pagamento,
+            r.fk_barco,
+            r.fk_tipo_passeio,
+            r.data_embarque,
+            r.data_desembarque,
+            r.local_embarque,
+            r.local_desembarque,
+            r.status_operacional,
             q.id_quarto, 
             q.numero AS numero_quarto,
-            h.nome_hospede AS nome_titular
+            h.nome_hospede AS nome_titular,
+            b.nome_barco,
+            tp.nome_tipo AS tipo_passeio
         FROM 
             reserva_quarto AS rq
         INNER JOIN 
@@ -234,6 +399,10 @@ def get_agenda_reservas(request):
             quarto AS q ON rq.fk_quarto = q.id_quarto
         LEFT JOIN
             hospede AS h ON r.fk_hospede_titular = h.id_hospede
+        LEFT JOIN
+            barco AS b ON r.fk_barco = b.id_barco
+        LEFT JOIN
+            tipo_passeio AS tp ON r.fk_tipo_passeio = tp.id_tipo_passeio
 
     """
     try:
@@ -246,7 +415,152 @@ def get_agenda_reservas(request):
 
     except Exception as e:
         return error_response(str(e), 'SERVER_ERROR', 500)
-    
+
+
+# -----------------------------------------------------------------
+# Função: barcos_view
+# Propósito: listar barcos para a operação de viagem da reserva.
+# Métodos aceitos: GET.
+# Integração front-end: `fetchBarcos` no modal de reserva.
+@csrf_exempt
+@token_required
+@require_http_methods(["GET"])
+def barcos_view(request):
+    status = request.GET.get('status')
+    data_embarque = request.GET.get('data_embarque')
+    data_desembarque = request.GET.get('data_desembarque')
+    reserva_id = request.GET.get('reserva_id')
+    status_params = []
+    disponibilidade_params = []
+    filtros = []
+
+    if status:
+        if status not in ['Disponível', 'Manutenção', 'Bloqueado']:
+            return error_response('Status de barco invalido.', 'VALIDATION_ERROR', 400)
+        filtros.append("b.status_barco = %s")
+        status_params.append(status)
+
+    periodo_params = []
+    reserva_id_param = None
+    if data_embarque or data_desembarque:
+        if not data_embarque or not data_desembarque:
+            return error_response(
+                'Informe data_embarque e data_desembarque para filtrar disponibilidade.',
+                'DATAS_OPERACAO_INVALIDAS',
+                400
+            )
+
+        try:
+            embarque_date = datetime.datetime.strptime(data_embarque, "%Y-%m-%d").date()
+            desembarque_date = datetime.datetime.strptime(data_desembarque, "%Y-%m-%d").date()
+        except (TypeError, ValueError):
+            return error_response('Formato de data invalido. Use YYYY-MM-DD.', 'DATAS_OPERACAO_INVALIDAS', 400)
+
+        if desembarque_date < embarque_date:
+            return error_response(
+                'Data de desembarque deve ser igual ou posterior ao embarque.',
+                'DATAS_OPERACAO_INVALIDAS',
+                400
+            )
+
+        periodo_params = [embarque_date, desembarque_date]
+        if reserva_id not in (None, ''):
+            try:
+                reserva_id_param = int(reserva_id)
+            except (TypeError, ValueError):
+                return error_response('reserva_id invalido.', 'VALIDATION_ERROR', 400)
+
+    disponibilidade_select = ""
+    disponibilidade_join = ""
+    if periodo_params:
+        disponibilidade_params.extend(periodo_params)
+        disponibilidade_select = "COALESCE(conflitos.total_conflitos, 0) AS reservas_no_periodo,"
+        filtros.append("COALESCE(conflitos.total_conflitos, 0) = 0")
+        reserva_filter_sql = ""
+        if reserva_id_param is not None:
+            reserva_filter_sql = "AND r.id_reserva != %s"
+            disponibilidade_params.append(reserva_id_param)
+        disponibilidade_join = f"""
+        LEFT JOIN LATERAL (
+            SELECT COUNT(*) AS total_conflitos
+            FROM reserva r
+            WHERE r.fk_barco = b.id_barco
+              AND r.status_reserva != 'Cancelada'
+              AND r.data_embarque IS NOT NULL
+              AND r.data_desembarque IS NOT NULL
+              AND daterange(r.data_embarque, r.data_desembarque + 1, '[)')
+                  && daterange(%s::date, %s::date + 1, '[)')
+              {reserva_filter_sql}
+        ) conflitos ON TRUE
+        """
+
+    if filtros:
+        where_clause = "WHERE " + " AND ".join(filtros)
+    else:
+        where_clause = ""
+
+    sql_query = f"""
+        SELECT
+            b.id_barco,
+            b.nome_barco,
+            b.capacidade_pessoas,
+            b.status_barco,
+            b.observacao,
+            {disponibilidade_select}
+            TRUE AS disponivel_periodo
+        FROM barco b
+        {disponibilidade_join}
+        {where_clause}
+        ORDER BY b.nome_barco;
+    """
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(sql_query, disponibilidade_params + status_params)
+            barcos = dictfetchall(cursor)
+        return success_response(barcos)
+    except Exception as e:
+        return error_response(str(e), 'SERVER_ERROR', 500)
+
+
+# -----------------------------------------------------------------
+# Função: tipos_passeio_view
+# Propósito: listar tipos de passeio disponíveis para a reserva.
+# Métodos aceitos: GET.
+# Integração front-end: `fetchTiposPasseio` no modal de reserva.
+@csrf_exempt
+@token_required
+@require_http_methods(["GET"])
+def tipos_passeio_view(request):
+    ativo = request.GET.get('ativo', 'Ativo')
+    if ativo not in ['Ativo', 'Inativo', 'Todos']:
+        ativo = 'Ativo'
+
+    params = []
+    where_clause = ""
+    if ativo != 'Todos':
+        where_clause = "WHERE ativo = %s"
+        params.append(ativo)
+
+    sql_query = f"""
+        SELECT
+            id_tipo_passeio,
+            nome_tipo,
+            descricao,
+            ativo
+        FROM tipo_passeio
+        {where_clause}
+        ORDER BY nome_tipo;
+    """
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(sql_query, params)
+            tipos = dictfetchall(cursor)
+        return success_response(tipos)
+    except Exception as e:
+        return error_response(str(e), 'SERVER_ERROR', 500)
+
 
 # -----------------------------------------------------------------
 # Função: reservas_view
@@ -317,6 +631,10 @@ def reservas_view(request):
             if status_quarto == 'Manutenção':
                 return error_response('Quarto em manutencao nao pode ser reservado.', 'QUARTO_MANUTENCAO', 409)
 
+            operacao_reserva, operacao_error = _validar_operacao_reserva(cursor, data, acompanhante_ids)
+            if operacao_error:
+                return operacao_error
+
             # Repete a checagem de overbooking para impedir conflitos futuros.
             # Consulta de validação para evitar overbooking; verifica se há reservas
             # que se sobrepõem ao período solicitado. Usada pelo formulário NovaReserva.
@@ -355,9 +673,17 @@ def reservas_view(request):
                     fk_usuario,
                     status_reserva,
                     status_pagamento,
-                    fk_hospede_titular
+                    fk_hospede_titular,
+                    fk_barco,
+                    fk_tipo_passeio,
+                    data_embarque,
+                    data_desembarque,
+                    local_embarque,
+                    local_desembarque,
+                    status_operacional,
+                    observacao_operacional
                 )
-                VALUES (%s, %s, %s, 'Agendada', %s, %s)
+                VALUES (%s, %s, %s, 'Agendada', %s, %s, %s, %s, %s, %s, %s, %s, 'A Preparar', %s)
                 RETURNING id_reserva;
             """
             params_reserva = [
@@ -365,7 +691,14 @@ def reservas_view(request):
                 observacao,
                 fk_usuario_logado,
                 status_pagamento,
-                titular_id
+                titular_id,
+                operacao_reserva['fk_barco'],
+                operacao_reserva['fk_tipo_passeio'],
+                operacao_reserva['data_embarque'],
+                operacao_reserva['data_desembarque'],
+                operacao_reserva['local_embarque'],
+                operacao_reserva['local_desembarque'],
+                operacao_reserva['observacao_operacional'],
             ]
             cursor.execute(sql_reserva, params_reserva)
             nova_reserva_id = cursor.fetchone()[0]
@@ -409,7 +742,17 @@ def reservas_view(request):
             'id_quarto': quarto_id,
             'numero_quarto': numero_quarto,
             'nome_titular': nome_titular,
-            'valor_total': float(valor_total)
+            'valor_total': float(valor_total),
+            'fk_barco': operacao_reserva['fk_barco'],
+            'nome_barco': operacao_reserva['nome_barco'],
+            'fk_tipo_passeio': operacao_reserva['fk_tipo_passeio'],
+            'tipo_passeio': operacao_reserva['tipo_passeio'],
+            'data_embarque': operacao_reserva['data_embarque'],
+            'data_desembarque': operacao_reserva['data_desembarque'],
+            'local_embarque': operacao_reserva['local_embarque'],
+            'local_desembarque': operacao_reserva['local_desembarque'],
+            'status_operacional': 'A Preparar',
+            'observacao_operacional': operacao_reserva['observacao_operacional'],
         }
 
         return success_response(nova_reserva_obj, status_code=201)
@@ -507,6 +850,15 @@ def edit_reserva_view(request, reserva_quarto_id):
             if status_quarto == 'Manutenção':
                 return error_response('Quarto em manutencao nao pode ser reservado.', 'QUARTO_MANUTENCAO', 409)
 
+            operacao_reserva, operacao_error = _validar_operacao_reserva(
+                cursor,
+                data,
+                acompanhante_ids,
+                reserva_id_atual=id_reserva_principal
+            )
+            if operacao_error:
+                return operacao_error
+
             sql_check_overbooking = """
                 SELECT 
                     rq.checkin, 
@@ -542,12 +894,33 @@ def edit_reserva_view(request, reserva_quarto_id):
                     observacao_reserva = %s,
                     fk_usuario = %s,
                     status_pagamento = %s,
-                    fk_hospede_titular = %s
+                    fk_hospede_titular = %s,
+                    fk_barco = %s,
+                    fk_tipo_passeio = %s,
+                    data_embarque = %s,
+                    data_desembarque = %s,
+                    local_embarque = %s,
+                    local_desembarque = %s,
+                    observacao_operacional = %s
                 WHERE id_reserva = %s;
             """
             cursor.execute(
                 sql_update_reserva,
-                [valor_total, observacao, fk_usuario_logado, status_pagamento, titular_id, id_reserva_principal]
+                [
+                    valor_total,
+                    observacao,
+                    fk_usuario_logado,
+                    status_pagamento,
+                    titular_id,
+                    operacao_reserva['fk_barco'],
+                    operacao_reserva['fk_tipo_passeio'],
+                    operacao_reserva['data_embarque'],
+                    operacao_reserva['data_desembarque'],
+                    operacao_reserva['local_embarque'],
+                    operacao_reserva['local_desembarque'],
+                    operacao_reserva['observacao_operacional'],
+                    id_reserva_principal,
+                ]
             )
 
             # Atualiza o relacionamento com o quarto e datas efetivas.
@@ -572,6 +945,9 @@ def edit_reserva_view(request, reserva_quarto_id):
                 return error_response('Reserva nao encontrada apos atualizacao.', 'NOT_FOUND', 404)
 
         return success_response(reserva_obj)
+
+    except IntegrityError as e:
+        return error_response(f'Erro de integridade no banco: {str(e)}', 'DB_INTEGRITY_ERROR', 400)
 
     except Exception as e:
         return error_response(str(e), 'ERRO_INTERNO', 500)
@@ -721,7 +1097,7 @@ def hospede_detail_view(request, hospede_id):
         try:
             data = json.loads(request.body)
             
-            # Validações na edição: reforçamos CPF válido para brasileiros.
+            # Validações na edição: reforça CPF válido para brasileiros.
             if data.get('pais_origem', 'Brasil') == 'Brasil':
                 cpf = data.get('cpf')
                 if not cpf:
@@ -908,8 +1284,13 @@ def _get_reserva_detalhes_internal(cursor, reserva_quarto_id):
         SELECT
             r.id_reserva, r.valor_total, r.observacao_reserva, 
             r.status_reserva, r.status_pagamento, r.dt_criacao,
+            r.fk_barco, r.fk_tipo_passeio, r.data_embarque, r.data_desembarque,
+            r.local_embarque, r.local_desembarque, r.status_operacional,
+            r.observacao_operacional,
             rq.id_reserva_quarto, rq.checkin, rq.checkout,
             q.id_quarto, q.numero AS numero_quarto, q.tipo_quarto,
+            b.nome_barco, b.capacidade_pessoas AS capacidade_barco,
+            tp.nome_tipo AS tipo_passeio,
             h.id_hospede AS id_titular,
             h.nome_hospede AS nome_titular,
             h.email_hospede AS email_titular,
@@ -919,6 +1300,8 @@ def _get_reserva_detalhes_internal(cursor, reserva_quarto_id):
             reserva_quarto AS rq
         JOIN reserva AS r ON rq.fk_reserva = r.id_reserva
         JOIN quarto AS q ON rq.fk_quarto = q.id_quarto
+        LEFT JOIN barco AS b ON r.fk_barco = b.id_barco
+        LEFT JOIN tipo_passeio AS tp ON r.fk_tipo_passeio = tp.id_tipo_passeio
         LEFT JOIN usuario AS u ON r.fk_usuario = u.id_usuario
         LEFT JOIN hospede AS h ON r.fk_hospede_titular = h.id_hospede
         WHERE 
