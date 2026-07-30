@@ -418,14 +418,86 @@ def get_agenda_reservas(request):
 
 
 # -----------------------------------------------------------------
+# Status aceitos pelos enums operacionais no PostgreSQL.
+STATUS_BARCO_VALIDOS = ('Disponível', 'Manutenção', 'Bloqueado')
+STATUS_OPERACIONAL_VALIDOS = ('A Preparar', 'Pronto', 'Em Viagem', 'Finalizado')
+
+
+def _validar_barco_payload(data):
+    nome_barco = (data.get('nome_barco') or '').strip()
+    status_barco = data.get('status_barco') or 'Disponível'
+    observacao = data.get('observacao')
+
+    if not nome_barco:
+        return None, error_response('Nome do barco e obrigatorio.', 'VALIDATION_ERROR', 400)
+
+    try:
+        capacidade_pessoas = int(data.get('capacidade_pessoas'))
+    except (TypeError, ValueError):
+        return None, error_response('Capacidade deve ser um numero inteiro.', 'VALIDATION_ERROR', 400)
+
+    if capacidade_pessoas <= 0:
+        return None, error_response('Capacidade deve ser maior que zero.', 'VALIDATION_ERROR', 400)
+
+    if status_barco not in STATUS_BARCO_VALIDOS:
+        return None, error_response('Status de barco invalido.', 'VALIDATION_ERROR', 400)
+
+    return {
+        'nome_barco': nome_barco,
+        'capacidade_pessoas': capacidade_pessoas,
+        'status_barco': status_barco,
+        'observacao': observacao.strip() if isinstance(observacao, str) and observacao.strip() else None,
+    }, None
+
+
 # Função: barcos_view
-# Propósito: listar barcos para a operação de viagem da reserva.
-# Métodos aceitos: GET.
-# Integração front-end: `fetchBarcos` no modal de reserva.
+# Propósito: listar ou cadastrar barcos para a operação de viagem da reserva.
+# Métodos aceitos: GET e POST.
+# Integração front-end: `fetchBarcos`, `createBarco` e modal de reserva.
 @csrf_exempt
 @token_required
-@require_http_methods(["GET"])
+@require_http_methods(["GET", "POST"])
 def barcos_view(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            barco_payload, error = _validar_barco_payload(data)
+            if error:
+                return error
+
+            sql_insert = """
+                INSERT INTO barco (
+                    nome_barco,
+                    capacidade_pessoas,
+                    status_barco,
+                    observacao
+                )
+                VALUES (%s, %s, %s, %s)
+                RETURNING id_barco, nome_barco, capacidade_pessoas, status_barco, observacao, dt_criacao;
+            """
+            params = [
+                barco_payload['nome_barco'],
+                barco_payload['capacidade_pessoas'],
+                barco_payload['status_barco'],
+                barco_payload['observacao'],
+            ]
+
+            with connection.cursor() as cursor:
+                cursor.execute(sql_insert, params)
+                novo_barco = dictfetchall(cursor)[0]
+
+            return success_response(novo_barco, 'BARCO_CREATED', 201)
+        except IntegrityError as e:
+            if 'barco_nome_barco_key' in str(e):
+                return error_response(
+                    f'Barco "{data.get("nome_barco")}" ja esta cadastrado.',
+                    'CONFLICT',
+                    409
+                )
+            return error_response(f'Erro de integridade: {str(e)}', 'DB_INTEGRITY_ERROR', 400)
+        except Exception as e:
+            return error_response(str(e), 'SERVER_ERROR', 500)
+
     status = request.GET.get('status')
     data_embarque = request.GET.get('data_embarque')
     data_desembarque = request.GET.get('data_desembarque')
@@ -435,10 +507,13 @@ def barcos_view(request):
     filtros = []
 
     if status:
-        if status not in ['Disponível', 'Manutenção', 'Bloqueado']:
+        if status == 'Todos':
+            status = None
+        elif status not in STATUS_BARCO_VALIDOS:
             return error_response('Status de barco invalido.', 'VALIDATION_ERROR', 400)
-        filtros.append("b.status_barco = %s")
-        status_params.append(status)
+        else:
+            filtros.append("b.status_barco = %s")
+            status_params.append(status)
 
     periodo_params = []
     reserva_id_param = None
@@ -521,6 +596,96 @@ def barcos_view(request):
         return success_response(barcos)
     except Exception as e:
         return error_response(str(e), 'SERVER_ERROR', 500)
+
+
+# -----------------------------------------------------------------
+# Função: barco_detail_view
+# Propósito: consultar, editar e excluir um barco especifico.
+# Métodos aceitos: GET, PUT e DELETE.
+# Integração front-end: `fetchBarcoDetalhes`, `updateBarco`, `deleteBarco`.
+@csrf_exempt
+@token_required
+@require_http_methods(["GET", "PUT", "DELETE"])
+def barco_detail_view(request, barco_id):
+    if request.method == 'GET':
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT id_barco, nome_barco, capacidade_pessoas, status_barco, observacao, dt_criacao
+                    FROM barco
+                    WHERE id_barco = %s;
+                    """,
+                    [barco_id]
+                )
+                barco = dictfetchall(cursor)
+
+            if not barco:
+                return error_response('Barco nao encontrado.', 'NOT_FOUND', 404)
+
+            return success_response(barco[0])
+        except Exception as e:
+            return error_response(str(e), 'SERVER_ERROR', 500)
+
+    if request.method == 'PUT':
+        try:
+            data = json.loads(request.body)
+            barco_payload, error = _validar_barco_payload(data)
+            if error:
+                return error
+
+            sql_update = """
+                UPDATE barco
+                SET
+                    nome_barco = %s,
+                    capacidade_pessoas = %s,
+                    status_barco = %s,
+                    observacao = %s
+                WHERE id_barco = %s
+                RETURNING id_barco, nome_barco, capacidade_pessoas, status_barco, observacao, dt_criacao;
+            """
+            params = [
+                barco_payload['nome_barco'],
+                barco_payload['capacidade_pessoas'],
+                barco_payload['status_barco'],
+                barco_payload['observacao'],
+                barco_id,
+            ]
+
+            with connection.cursor() as cursor:
+                cursor.execute(sql_update, params)
+                if cursor.rowcount == 0:
+                    return error_response('Barco nao encontrado.', 'NOT_FOUND', 404)
+                barco_atualizado = dictfetchall(cursor)[0]
+
+            return success_response(barco_atualizado, 'BARCO_UPDATED')
+        except IntegrityError as e:
+            if 'barco_nome_barco_key' in str(e):
+                return error_response(
+                    f'Barco "{data.get("nome_barco")}" ja esta cadastrado.',
+                    'CONFLICT',
+                    409
+                )
+            return error_response(f'Erro de integridade: {str(e)}', 'DB_INTEGRITY_ERROR', 400)
+        except Exception as e:
+            return error_response(str(e), 'SERVER_ERROR', 500)
+
+    if request.method == 'DELETE':
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("DELETE FROM barco WHERE id_barco = %s", [barco_id])
+                if cursor.rowcount == 0:
+                    return error_response('Barco nao encontrado.', 'NOT_FOUND', 404)
+
+            return success_response(None, 'BARCO_DELETED', 204)
+        except IntegrityError:
+            return error_response(
+                'Nao e possivel excluir este barco pois ele esta vinculado a uma ou mais reservas.',
+                'FK_CONSTRAINT',
+                409
+            )
+        except Exception as e:
+            return error_response(str(e), 'SERVER_ERROR', 500)
 
 
 # -----------------------------------------------------------------
@@ -955,7 +1120,7 @@ def edit_reserva_view(request, reserva_quarto_id):
 # -----------------------------------------------------------------
 # Função: update_reserva_status_view
 # Propósito: endpoint rápido para ações de "Marcar como Pago" ou "Cancelar"
-# diretamente no cartão da agenda ou painel.
+# diretamente no cartão da agenda ou painel, incluindo status operacional.
 # Métodos aceitos: PATCH.
 # Fluxo: lê quais status foram enviados, bloqueia a linha principal de
 # `reserva` e atualiza apenas os campos necessários.
@@ -969,9 +1134,13 @@ def update_reserva_status_view(request, reserva_quarto_id):
         data = json.loads(request.body)
         novo_status_reserva = data.get('status_reserva')
         novo_status_pagamento = data.get('status_pagamento')
+        novo_status_operacional = data.get('status_operacional')
 
-        if not novo_status_reserva and not novo_status_pagamento:
+        if not novo_status_reserva and not novo_status_pagamento and not novo_status_operacional:
             return error_response('Nenhum status foi enviado para atualização.', 'VALIDATION_ERROR', 400)
+
+        if novo_status_operacional and novo_status_operacional not in STATUS_OPERACIONAL_VALIDOS:
+            return error_response('Status operacional invalido.', 'VALIDATION_ERROR', 400)
 
         with connection.cursor() as cursor:
             
@@ -995,6 +1164,9 @@ def update_reserva_status_view(request, reserva_quarto_id):
             if novo_status_pagamento:
                 campos_para_atualizar.append("status_pagamento = %s")
                 params.append(novo_status_pagamento)
+            if novo_status_operacional:
+                campos_para_atualizar.append("status_operacional = %s")
+                params.append(novo_status_operacional)
 
             # 4. Executa o UPDATE
             sql_update = f"UPDATE reserva SET {', '.join(campos_para_atualizar)} WHERE id_reserva = %s"

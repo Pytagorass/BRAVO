@@ -13,6 +13,7 @@ import Login from './pages/Login';
 import AgendaDashboard from './pages/AgendaDashboard';
 import ClientesPage from './pages/ClientesPage';
 import QuartosPage from './pages/QuartosPage';
+import BarcosPage from './pages/BarcosPage';
 import GestaoPage from './pages/GestaoPage';
 import MainLayout from './layouts/MainLayout';
 
@@ -43,6 +44,7 @@ function App() {
           <Route path="/agenda" element={<AgendaDashboard />} />
           <Route path="/clientes" element={<ClientesPage />} />
           <Route path="/quartos" element={<QuartosPage />} />
+          <Route path="/barcos" element={<BarcosPage />} />
           <Route path="/gestao" element={<GestaoPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" />} />

@@ -22,6 +22,7 @@ urlpatterns = [
 
     # --- Rotas Operacionais (Barcos e Passeios) ---
     path('barcos/', views.barcos_view, name='barcos_view'),
+    path('barcos/<int:barco_id>/', views.barco_detail_view, name='barco_detail_view'),
     path('tipos-passeio/', views.tipos_passeio_view, name='tipos_passeio_view'),
     
     # --- Rotas de Reservas (Gantt) ---

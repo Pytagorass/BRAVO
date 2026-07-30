@@ -97,6 +97,10 @@ export const fetchReservasPendentesGestao = () => apiClient.get('/gestao/reserva
 // --- OPERACAO DE VIAGEM ---
 export const fetchBarcos = (params = {}) =>
   apiClient.get('/barcos/', { params: { status: 'Disponível', ...params } });
+export const fetchBarcoDetalhes = (barcoId) => apiClient.get(`/barcos/${barcoId}/`);
+export const createBarco = (barcoData) => apiClient.post('/barcos/', barcoData);
+export const updateBarco = (barcoId, barcoData) => apiClient.put(`/barcos/${barcoId}/`, barcoData);
+export const deleteBarco = (barcoId) => apiClient.delete(`/barcos/${barcoId}/`);
 export const fetchTiposPasseio = (ativo = 'Ativo') => apiClient.get('/tipos-passeio/', { params: { ativo } });
 
 // --- AGENDA E RESERVAS ---

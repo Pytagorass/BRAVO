@@ -6,11 +6,11 @@
  * dos modais de criação/edição e detalhes.
  */
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { fetchAgendaReservas, fetchQuartos } from '../services/api';
+import { fetchAgendaReservas, fetchBarcos, fetchQuartos } from '../services/api';
 import GanttChart from '../components/GanttChart';
 import NovaReservaModal from '../components/NovaReservaModal';
 import ReservaDetalhesModal from '../components/ReservaDetalhesModal';
-import { Spinner, Alert, Button } from 'react-bootstrap';
+import { Spinner, Alert, Button, ButtonGroup } from 'react-bootstrap';
 import moment from 'moment';
 import 'moment/locale/pt-br';
 import LegendaGantt from '../components/LegendaGantt';
@@ -41,6 +41,7 @@ const FILTROS_RESERVA = [
  */
 const AgendaDashboard = () => {
     const [quartos, setQuartos] = useState([]);
+    const [barcos, setBarcos] = useState([]);
     const [reservas, setReservas] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -52,6 +53,7 @@ const AgendaDashboard = () => {
     const [reservaParaEditar, setReservaParaEditar] = useState(null);
     const [showLegenda, setShowLegenda] = useState(false);
     const [filtroReserva, setFiltroReserva] = useState('todas');
+    const [visualizacaoAgenda, setVisualizacaoAgenda] = useState('quartos');
 
     const reservasFiltradas = useMemo(() => {
         switch (filtroReserva) {
@@ -70,6 +72,23 @@ const AgendaDashboard = () => {
         }
     }, [reservas, filtroReserva]);
 
+    const reservasSemBarcoCount = useMemo(() => {
+        const idsReservas = new Set();
+
+        reservasFiltradas.forEach((reserva) => {
+            const hasTimelineDates = (
+                (reserva.data_embarque && reserva.data_desembarque) ||
+                (reserva.checkin && reserva.checkout)
+            );
+
+            if (reserva.id_reserva && !reserva.fk_barco && hasTimelineDates) {
+                idsReservas.add(reserva.id_reserva);
+            }
+        });
+
+        return idsReservas.size;
+    }, [reservasFiltradas]);
+
     /**
      * Busca os dados necessários para montar o Gantt (quartos + reservas) em paralelo.
      * Em caso de erro, atualiza o alerta exibido na interface. Não retorna valores.
@@ -78,11 +97,13 @@ const AgendaDashboard = () => {
         try {
             setLoading(true);
             setError(null);
-            const [quartosResponse, reservasResponse] = await Promise.all([
+            const [quartosResponse, barcosResponse, reservasResponse] = await Promise.all([
                 fetchQuartos(),
+                fetchBarcos(),
                 fetchAgendaReservas(),
             ]);
             setQuartos(quartosResponse);
+            setBarcos(barcosResponse || []);
             setReservas(reservasResponse);
         } catch (err) {
             console.error('Falha ao carregar dados:', err);
@@ -184,27 +205,49 @@ const AgendaDashboard = () => {
      *
      * @param {object} reservaAtualizadaObj - reserva retornada pela API após a operação.
      */
-    const handleReservaUpdateSuccess = (reservaAtualizadaObj) => {
-        const reservaExiste = reservas.some(
-            (r) => r.id_reserva_quarto === reservaAtualizadaObj.id_reserva_quarto
-        );
-
-        if (reservaExiste) {
-            setReservas((prevReservas) =>
-                prevReservas.map((reserva) =>
-                    reserva.id_reserva_quarto === reservaAtualizadaObj.id_reserva_quarto
-                        ? reservaAtualizadaObj
-                        : reserva
-                )
+    const handleReservaUpdateSuccess = (reservaAtualizadaObj, options = {}) => {
+        setReservas((prevReservas) => {
+            const reservaExiste = prevReservas.some(
+                (r) => r.id_reserva_quarto === reservaAtualizadaObj.id_reserva_quarto
             );
-        } else {
-            setReservas((prevReservas) => [...prevReservas, reservaAtualizadaObj]);
-        }
 
-        setShowReservaModal(false);
-        setShowDetalhesModal(false);
-        setReservaParaEditar(null);
-        setSelectedReservaId(null);
+            if (!reservaExiste) {
+                return [...prevReservas, reservaAtualizadaObj];
+            }
+
+            return prevReservas.map((reserva) => {
+                if (reserva.id_reserva_quarto === reservaAtualizadaObj.id_reserva_quarto) {
+                    return reservaAtualizadaObj;
+                }
+
+                if (reserva.id_reserva === reservaAtualizadaObj.id_reserva) {
+                    return {
+                        ...reserva,
+                        status_reserva: reservaAtualizadaObj.status_reserva,
+                        status_pagamento: reservaAtualizadaObj.status_pagamento,
+                        fk_barco: reservaAtualizadaObj.fk_barco,
+                        nome_barco: reservaAtualizadaObj.nome_barco,
+                        fk_tipo_passeio: reservaAtualizadaObj.fk_tipo_passeio,
+                        tipo_passeio: reservaAtualizadaObj.tipo_passeio,
+                        data_embarque: reservaAtualizadaObj.data_embarque,
+                        data_desembarque: reservaAtualizadaObj.data_desembarque,
+                        local_embarque: reservaAtualizadaObj.local_embarque,
+                        local_desembarque: reservaAtualizadaObj.local_desembarque,
+                        status_operacional: reservaAtualizadaObj.status_operacional,
+                        observacao_operacional: reservaAtualizadaObj.observacao_operacional,
+                    };
+                }
+
+                return reserva;
+            });
+        });
+
+        if (!options.keepDetailsOpen) {
+            setShowReservaModal(false);
+            setShowDetalhesModal(false);
+            setReservaParaEditar(null);
+            setSelectedReservaId(null);
+        }
     };
 
 
@@ -238,10 +281,18 @@ const AgendaDashboard = () => {
 
         return (
             <div className="agenda-timeline-shell">
-                {showLegenda && <LegendaGantt />}
+                {showLegenda && <LegendaGantt modo={visualizacaoAgenda} />}
                 <GanttChart
                     quartosData={quartos}
+                    barcosData={barcos}
                     reservasData={reservasFiltradas}
+                    resourceType={visualizacaoAgenda}
+                    sidebarTitle={visualizacaoAgenda === 'barcos' ? 'Operação' : 'Quartos'}
+                    emptyMessage={
+                        visualizacaoAgenda === 'barcos'
+                            ? 'Nenhuma viagem ou pendência operacional encontrada para os filtros atuais.'
+                            : 'Nenhuma reserva encontrada para os filtros atuais.'
+                    }
                     visibleTimeStart={visibleTimeStart}
                     visibleTimeEnd={visibleTimeEnd}
                     onTimeChange={handleTimeChange}
@@ -252,6 +303,9 @@ const AgendaDashboard = () => {
     };
 
     const periodoAtual = moment(visibleTimeStart).format('MMMM [de] YYYY');
+    const recursoAtualLabel = visualizacaoAgenda === 'barcos'
+        ? `${barcos.length} barcos${reservasSemBarcoCount ? ` + ${reservasSemBarcoCount} sem barco` : ''}`
+        : `${quartos.length} quartos`;
     const totalReservasLabel = reservasFiltradas.length === reservas.length
         ? `${reservas.length} reservas`
         : `${reservasFiltradas.length}/${reservas.length} reservas`;
@@ -266,6 +320,31 @@ const AgendaDashboard = () => {
             </div>
             <div className="agenda-toolbar">
                 <div className="agenda-actions">
+                    <ButtonGroup className="agenda-view-toggle" aria-label="Visualizacao da agenda">
+                        <Button
+                            variant={visualizacaoAgenda === 'quartos' ? 'success' : 'outline-secondary'}
+                            onClick={() => setVisualizacaoAgenda('quartos')}
+                            style={
+                                visualizacaoAgenda === 'quartos'
+                                    ? { backgroundColor: '#26522c', borderColor: '#26522c' }
+                                    : {}
+                            }
+                        >
+                            Quartos
+                        </Button>
+                        <Button
+                            variant={visualizacaoAgenda === 'barcos' ? 'success' : 'outline-secondary'}
+                            onClick={() => setVisualizacaoAgenda('barcos')}
+                            style={
+                                visualizacaoAgenda === 'barcos'
+                                    ? { backgroundColor: '#26522c', borderColor: '#26522c' }
+                                    : {}
+                            }
+                        >
+                            Barcos
+                        </Button>
+                    </ButtonGroup>
+
                     <div className="agenda-month-nav" aria-label="Navegacao do calendario">
                         <Button
                             variant="outline-secondary"
@@ -312,7 +391,7 @@ const AgendaDashboard = () => {
                     </Button>
                 </div>
                 <div className="agenda-period-summary">
-                    <span className="agenda-chip">{quartos.length} quartos</span>
+                    <span className="agenda-chip">{recursoAtualLabel}</span>
                     <span className="agenda-chip">{totalReservasLabel}</span>
                 </div>
             </div>

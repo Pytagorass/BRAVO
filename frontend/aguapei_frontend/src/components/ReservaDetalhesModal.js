@@ -328,6 +328,8 @@ const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 };
 
+const STATUS_OPERACIONAL_CHOICES = ['A Preparar', 'Pronto', 'Em Viagem', 'Finalizado'];
+
 const getStatusClass = (status) => {
     if (!status) return '';
     return 'status-' + status.toLowerCase().replace(' ', '-');
@@ -505,6 +507,28 @@ function ReservaDetalhesModal({ show, handleClose, reservaId, onUpdateSuccess, o
         }
     };
 
+    const handleUpdateStatusOperacional = async (newStatus) => {
+        if (!reserva || newStatus === reserva.status_operacional) return;
+        setIsUpdating(true);
+        setUpdateError(null);
+
+        try {
+            const responseData = await updateReservaStatus(reserva.id_reserva_quarto, {
+                status_operacional: newStatus,
+            });
+            setReserva(responseData);
+            toast.success(`Status operacional atualizado para "${newStatus}"!`);
+            if (onUpdateSuccess) onUpdateSuccess(responseData, { keepDetailsOpen: true });
+        } catch (err) {
+            const apiError = err?.error || err || {};
+            const errorMsg = apiError.message || 'Falha ao atualizar o status operacional.';
+            setUpdateError(errorMsg);
+            toast.error(errorMsg);
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
     const titularNome = reserva?.nome_titular || 'Hóspede';
     const quartoInfo = `${reserva?.numero_quarto || 'N/A'} (${reserva?.tipo_quarto || 'N/A'})`;
     const usuarioNome = reserva?.nome_usuario_criacao || 'Sistema';
@@ -632,7 +656,19 @@ function ReservaDetalhesModal({ show, handleClose, reservaId, onUpdateSuccess, o
                             <div className="operacao-detalhes-box">
                                 <div className="operacao-detalhes-header">
                                     <h5>Operação da Viagem</h5>
-                                    <span>{reserva.status_operacional || 'A Preparar'}</span>
+                                    <Form.Select
+                                        className="operacao-status-select"
+                                        value={reserva.status_operacional || 'A Preparar'}
+                                        onChange={(event) => handleUpdateStatusOperacional(event.target.value)}
+                                        disabled={isUpdating || reserva.status_reserva === 'Cancelada'}
+                                        aria-label="Status operacional da viagem"
+                                    >
+                                        {STATUS_OPERACIONAL_CHOICES.map((status) => (
+                                            <option key={status} value={status}>
+                                                {status}
+                                            </option>
+                                        ))}
+                                    </Form.Select>
                                 </div>
                                 <div className="operacao-detalhes-grid">
                                     <p>

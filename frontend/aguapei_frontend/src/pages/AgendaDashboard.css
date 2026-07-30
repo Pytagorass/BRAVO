@@ -55,6 +55,14 @@
   gap: 4px;
 }
 
+.agenda-view-toggle .btn {
+  font-size: 13px;
+  font-weight: 800;
+  min-height: 36px;
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
 .agenda-chip {
   align-items: center;
   background: #ffffff;
@@ -185,6 +193,14 @@
   .agenda-actions,
   .agenda-month-nav {
     width: 100%;
+  }
+
+  .agenda-view-toggle {
+    width: 100%;
+  }
+
+  .agenda-view-toggle .btn {
+    flex: 1;
   }
 
   .agenda-month-nav {

@@ -74,6 +74,22 @@
     background-color: #dc3545;
 }
 
+.cor-box.item-operacao-preparar {
+    background-color: #f2c94c;
+}
+
+.cor-box.item-operacao-pronto {
+    background-color: #0f7ea0;
+}
+
+.cor-box.item-operacao-viagem {
+    background-color: #26522c;
+}
+
+.cor-box.item-operacao-finalizado {
+    background-color: #6b7280;
+}
+
 @media (max-width: 768px) {
     .gantt-legenda {
         align-items: flex-start;
