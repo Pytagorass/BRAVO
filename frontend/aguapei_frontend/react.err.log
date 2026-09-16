@@ -1,0 +1,15 @@
+none : O termo 'none' n∆o Ç reconhecido como nome de cmdlet, funá∆o, arquivo de script ou programa oper†vel. Verifique 
+a grafia do nome ou, se um caminho tiver sido inclu°do, veja se o caminho est† correto e tente novamente.
+No linha:1 caractere:14
++ $env:BROWSER=none; npm start
++              ~~~~
+    + CategoryInfo          : ObjectNotFound: (none:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+Browserslist: browsers data (caniuse-lite) is 11 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+(node:35392) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:35392) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
