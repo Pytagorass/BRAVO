@@ -26,18 +26,6 @@ class _HomeViewState extends State<HomeView> {
     );
   }
 
-  void _abrirRestaurante() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const RegistrarPedidoView(
-          origem: 'Restaurante',
-          titulo: 'Restaurante',
-        ),
-      ),
-    );
-  }
-
   void _abrirLojinha() {
     Navigator.push(
       context,
@@ -100,7 +88,6 @@ class _HomeViewState extends State<HomeView> {
             _ResumoCard(),
             const SizedBox(height: 16),
             _AcessosRapidosCard(
-              abrirRestaurante: _abrirRestaurante,
               abrirLancarBebida: _abrirLancarBebida,
               abrirLojinha: _abrirLojinha,
               abrirContaHospede: _abrirContaHospede,
@@ -121,7 +108,7 @@ class _HomeViewState extends State<HomeView> {
           setState(() => _selectedIndex = index);
 
           if (index == 1) {
-            _abrirRestaurante();
+            _abrirLancarBebida();
           } else if (index == 2) {
             _abrirContaHospede();
           } else if (index == 3) {
@@ -134,8 +121,8 @@ class _HomeViewState extends State<HomeView> {
             label: 'Home',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.restaurant_menu),
-            label: 'Restaurante',
+            icon: Icon(Icons.local_bar),
+            label: 'Bebidas',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.account_balance_wallet),
@@ -170,13 +157,8 @@ class _HomeViewState extends State<HomeView> {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.restaurant_menu),
-            title: const Text('Restaurante'),
-            onTap: () => _fecharDrawerEAbrir(_abrirRestaurante),
-          ),
-          ListTile(
             leading: const Icon(Icons.local_bar),
-            title: const Text('Bar'),
+            title: const Text('Bebidas'),
             onTap: () => _fecharDrawerEAbrir(_abrirLancarBebida),
           ),
           ListTile(
@@ -223,7 +205,7 @@ class _ResumoCard extends StatelessWidget {
             SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Controle de consumo do barco-hotel',
+                'Controle de bebidas e lojinha do barco-hotel',
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
                   color: CoresApp.verdeEscuro,
@@ -238,14 +220,12 @@ class _ResumoCard extends StatelessWidget {
 }
 
 class _AcessosRapidosCard extends StatelessWidget {
-  final VoidCallback abrirRestaurante;
   final VoidCallback abrirLancarBebida;
   final VoidCallback abrirLojinha;
   final VoidCallback abrirContaHospede;
   final VoidCallback abrirFecharConta;
 
   const _AcessosRapidosCard({
-    required this.abrirRestaurante,
     required this.abrirLancarBebida,
     required this.abrirLojinha,
     required this.abrirContaHospede,
@@ -278,17 +258,17 @@ class _AcessosRapidosCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: _QuickButton(
-                    label: 'Restaurante',
-                    icon: Icons.restaurant_menu,
-                    onTap: abrirRestaurante,
+                    label: 'Bebidas',
+                    icon: Icons.local_bar,
+                    onTap: abrirLancarBebida,
                   ),
                 ),
                 SizedBox(width: espacamento),
                 Expanded(
                   child: _QuickButton(
-                    label: 'Bar',
-                    icon: Icons.local_bar,
-                    onTap: abrirLancarBebida,
+                    label: 'Lojinha',
+                    icon: Icons.storefront,
+                    onTap: abrirLojinha,
                   ),
                 ),
               ],
@@ -298,29 +278,20 @@ class _AcessosRapidosCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: _QuickButton(
-                    label: 'Lojinha',
-                    icon: Icons.storefront,
-                    onTap: abrirLojinha,
-                  ),
-                ),
-                SizedBox(width: espacamento),
-                Expanded(
-                  child: _QuickButton(
                     label: 'Conta',
                     icon: Icons.account_balance_wallet,
                     onTap: abrirContaHospede,
                   ),
                 ),
+                SizedBox(width: espacamento),
+                Expanded(
+                  child: _QuickButton(
+                    label: 'Fechar Conta',
+                    icon: Icons.attach_money,
+                    onTap: abrirFecharConta,
+                  ),
+                ),
               ],
-            ),
-            SizedBox(height: espacamento),
-            SizedBox(
-              width: double.infinity,
-              child: _QuickButton(
-                label: 'Fechar Conta',
-                icon: Icons.attach_money,
-                onTap: abrirFecharConta,
-              ),
             ),
           ],
         ),

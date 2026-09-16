@@ -1,6 +1,6 @@
 # BRAVO Consumo Mobile
 
-Aplicativo Flutter do projeto BRAVO para dispositivos moveis. Ele usa a API Django do projeto principal para autenticar usuarios, consultar reservas abertas, registrar consumo do restaurante, bar e lojinha, acompanhar contas de hospedes e fechar contas de consumo.
+Aplicativo Flutter do projeto BRAVO para dispositivos moveis. Ele usa a API Django do projeto principal para autenticar usuarios, consultar reservas abertas, registrar consumo de bebidas e produtos da lojinha, acompanhar contas de hospedes e fechar contas de consumo.
 
 ## Tecnologias
 
@@ -15,8 +15,7 @@ Aplicativo Flutter do projeto BRAVO para dispositivos moveis. Ele usa a API Djan
 
 - Login via `/api/login/`
 - Listagem de reservas abertas
-- Registro de itens do restaurante
-- Registro de bebidas do bar
+- Registro de bebidas consumidas
 - Registro de produtos da lojinha
 - Consulta da conta do hospede
 - Fechamento da conta de consumo
@@ -95,6 +94,7 @@ flutter test --no-pub
 
 ## Observacoes
 
-- Restaurante e Lojinha usam a mesma tela de registro, mudando apenas a origem enviada para a API.
-- Bar usa a mesma API de vendas, filtrando produtos da categoria de bebidas.
+- Alimentacao faz parte do pacote open food e nao e vendida como item avulso.
+- Bebidas usam a API de vendas com origem tecnica `Restaurante`, filtrando produtos da categoria de bebidas.
+- Lojinha usa a tela de registro de produtos com origem `Lojinha`.
 - O token JWT fica em memoria durante a sessao do app. Ao sair, ele e limpo.

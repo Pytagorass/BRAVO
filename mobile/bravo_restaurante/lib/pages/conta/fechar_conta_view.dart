@@ -152,11 +152,11 @@ class _FecharContaViewState extends State<FecharContaView> {
           pw.Text('Status da Conta: ${reserva.statusConta}'),
           pw.SizedBox(height: 16),
           pw.Text(
-            'Restaurante / Lojinha',
+            'Lojinha',
             style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
           ),
           if (resumo.pedidos.isEmpty)
-            pw.Text('Nenhum consumo registrado.')
+            pw.Text('Nenhum produto da lojinha registrado.')
           else
             ...resumo.pedidos.map((pedido) {
               final dataPedido = _formatarDataPedido(pedido.createdAt);
@@ -166,7 +166,7 @@ class _FecharContaViewState extends State<FecharContaView> {
                 children: [
                   pw.SizedBox(height: 8),
                   pw.Text(
-                    'Pedido',
+                    'Venda da lojinha',
                     style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                   ),
                   pw.Text('Data: $dataPedido'),
@@ -176,13 +176,16 @@ class _FecharContaViewState extends State<FecharContaView> {
                     );
                   }),
                   pw.Text(
-                    'Total do pedido: R\$ ${pedido.totalPedido.toStringAsFixed(2)}',
+                    'Total do lancamento: R\$ ${pedido.totalPedido.toStringAsFixed(2)}',
                   ),
                 ],
               );
             }),
           pw.SizedBox(height: 16),
-          pw.Text('Bar', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+          pw.Text(
+            'Bebidas',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
           if (resumo.bebidas.isEmpty)
             pw.Text('Nenhuma bebida lancada.')
           else
@@ -194,7 +197,7 @@ class _FecharContaViewState extends State<FecharContaView> {
                 children: [
                   pw.SizedBox(height: 8),
                   pw.Text(
-                    'Pedido',
+                    'Bebida',
                     style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                   ),
                   pw.Text('Data: $dataPedido'),
@@ -202,7 +205,7 @@ class _FecharContaViewState extends State<FecharContaView> {
                     '${bebida.quantidade}x ${bebida.nomeProduto} - R\$ ${bebida.subtotal.toStringAsFixed(2)}',
                   ),
                   pw.Text(
-                    'Total do pedido: R\$ ${bebida.subtotal.toStringAsFixed(2)}',
+                    'Total do lancamento: R\$ ${bebida.subtotal.toStringAsFixed(2)}',
                   ),
                 ],
               );
@@ -358,20 +361,17 @@ class _FecharContaViewState extends State<FecharContaView> {
           ),
         ),
         const SizedBox(height: 10),
-        const Text(
-          'Restaurante / Lojinha',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
+        const Text('Lojinha', style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 6),
         if (resumo.pedidos.isEmpty)
-          const Text('Nenhum consumo registrado.')
+          const Text('Nenhum produto da lojinha registrado.')
         else
           ...resumo.pedidos.map((pedido) => _buildPedidoCard(pedido)),
         const SizedBox(height: 14),
-        const Text('Bar', style: TextStyle(fontWeight: FontWeight.w600)),
+        const Text('Bebidas', style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 6),
         if (resumo.bebidas.isEmpty)
-          const Text('Nenhuma pedido ao bar realizado.')
+          const Text('Nenhuma bebida lancada.')
         else
           ...resumo.bebidas.map((bebida) => _buildBebidaCard(bebida)),
         const SizedBox(height: 14),
@@ -389,6 +389,7 @@ class _FecharContaViewState extends State<FecharContaView> {
     final dataPedido = _formatarDataPedido(pedido.createdAt);
 
     return ConsumoCard(
+      titulo: 'Venda da lojinha',
       data: dataPedido,
       itens: pedido.itens.map((item) {
         return '${item.quantidade}x ${item.nomeProduto} - R\$ ${item.subtotal.toStringAsFixed(2)}';
@@ -401,6 +402,7 @@ class _FecharContaViewState extends State<FecharContaView> {
     final dataPedido = _formatarDataPedido(bebida.createdAt);
 
     return ConsumoCard(
+      titulo: 'Bebida',
       data: dataPedido,
       itens: [
         '${bebida.quantidade}x ${bebida.nomeProduto} - R\$ ${bebida.subtotal.toStringAsFixed(2)}',

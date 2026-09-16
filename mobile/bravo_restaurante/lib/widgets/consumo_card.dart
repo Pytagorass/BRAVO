@@ -12,7 +12,7 @@ class ConsumoCard extends StatelessWidget {
 
   const ConsumoCard({
     super.key,
-    this.titulo = 'Pedido',
+    this.titulo = 'Lancamento',
     required this.data,
     required this.itens,
     required this.total,

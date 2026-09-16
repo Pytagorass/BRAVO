@@ -19,11 +19,11 @@ Future<void> main() async {
       providers: [
         // Guarda dados do usuario logado e regras de autenticacao.
         ChangeNotifierProvider(create: (_) => UsuarioViewModel()),
-        // Carrega produtos usados em pedidos e lancamentos de bebida.
+        // Carrega produtos usados em lancamentos da lojinha e de bebida.
         ChangeNotifierProvider(create: (_) => ProdutoViewModel()),
         // Carrega reservas abertas para selecionar quarto/hospede.
         ChangeNotifierProvider(create: (_) => ReservaViewModel()),
-        // Controla criacao e envio dos pedidos do restaurante.
+        // Controla criacao e envio dos lancamentos da lojinha.
         ChangeNotifierProvider(create: (_) => PedidoViewModel()),
         // Consulta o resumo de consumo da conta do hospede.
         ChangeNotifierProvider(create: (_) => ContaConsumoViewModel()),

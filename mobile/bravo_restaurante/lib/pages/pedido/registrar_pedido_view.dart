@@ -22,8 +22,8 @@ class RegistrarPedidoView extends StatefulWidget {
 
   const RegistrarPedidoView({
     super.key,
-    this.origem = 'Restaurante',
-    this.titulo = 'Registrar Pedido',
+    this.origem = 'Lojinha',
+    this.titulo = 'Lojinha',
   });
 
   @override
@@ -522,7 +522,7 @@ class _RegistrarPedidoViewState extends State<RegistrarPedidoView> {
         border: const OutlineInputBorder(),
         hintText: _ehLojinha
             ? 'Ex: Cor, tamanho, embalagem...'
-            : 'Ex: Sem cebola, ponto da carne...',
+            : 'Ex: Observacao do lancamento...',
       ),
     );
   }

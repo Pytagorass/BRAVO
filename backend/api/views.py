@@ -1687,6 +1687,10 @@ def get_indicadores_gestao(request):
         faturamento_por_tipo = []
         reservas_por_status = []
         pagamentos_pendentes = {}
+        consumo_resumo = {}
+        consumo_por_origem = []
+        produtos_mais_vendidos = []
+        contas_consumo_abertas = []
         diarias_por_pais = []
         lead_time_medio = 0
 
@@ -1867,6 +1871,104 @@ def get_indicadores_gestao(request):
             cursor.execute(sql_pagamentos, [data_inicio, data_fim])
             pagamentos_pendentes = dictfetchall(cursor)[0]
 
+            # Indicadores do modulo de consumo (bebidas e lojinha)
+            # para o painel executivo. Filtra pelas vendas confirmadas no ano.
+            sql_consumo_resumo = """
+                WITH vendas_ano AS (
+                    SELECT id_venda, total_venda
+                    FROM venda_consumo
+                    WHERE
+                        status_venda = 'Confirmada'
+                        AND dt_criacao::date BETWEEN %s AND %s
+                ),
+                contas_abertas AS (
+                    SELECT
+                        COUNT(*) AS contas_abertas,
+                        COALESCE(SUM(total_acumulado), 0.00) AS total_contas_abertas
+                    FROM conta_consumo
+                    WHERE status_conta = 'Aberta'
+                )
+                SELECT
+                    COALESCE(SUM(v.total_venda), 0.00) AS faturamento_total,
+                    COALESCE(COUNT(v.id_venda), 0) AS total_vendas,
+                    CASE
+                        WHEN COUNT(v.id_venda) = 0 THEN 0.00
+                        ELSE COALESCE(SUM(v.total_venda), 0.00) / COUNT(v.id_venda)
+                    END AS ticket_medio,
+                    ca.contas_abertas,
+                    ca.total_contas_abertas
+                FROM contas_abertas ca
+                LEFT JOIN vendas_ano v ON TRUE
+                GROUP BY ca.contas_abertas, ca.total_contas_abertas;
+            """
+            cursor.execute(sql_consumo_resumo, [data_inicio, data_fim])
+            consumo_resumo = dictfetchall(cursor)[0]
+
+            sql_consumo_origem = """
+                SELECT
+                    vc.origem,
+                    COALESCE(COUNT(DISTINCT vc.id_venda), 0) AS total_vendas,
+                    COALESCE(SUM(vc.total_venda), 0.00) AS faturamento,
+                    COALESCE(SUM(ivc.quantidade), 0) AS quantidade_itens
+                FROM venda_consumo vc
+                LEFT JOIN item_venda_consumo ivc ON ivc.fk_venda = vc.id_venda
+                WHERE
+                    vc.status_venda = 'Confirmada'
+                    AND vc.dt_criacao::date BETWEEN %s AND %s
+                GROUP BY vc.origem
+                ORDER BY faturamento DESC;
+            """
+            cursor.execute(sql_consumo_origem, [data_inicio, data_fim])
+            consumo_por_origem = dictfetchall(cursor)
+
+            sql_produtos_mais_vendidos = """
+                SELECT
+                    p.id_produto,
+                    p.nome_produto,
+                    cp.nome_categoria,
+                    cp.tipo_categoria AS origem,
+                    COALESCE(SUM(ivc.quantidade), 0) AS quantidade_total,
+                    COALESCE(SUM(ivc.subtotal), 0.00) AS faturamento_total
+                FROM item_venda_consumo ivc
+                JOIN venda_consumo vc ON vc.id_venda = ivc.fk_venda
+                JOIN produto p ON p.id_produto = ivc.fk_produto
+                JOIN categoria_produto cp ON cp.id_categoria = p.fk_categoria
+                WHERE
+                    vc.status_venda = 'Confirmada'
+                    AND vc.dt_criacao::date BETWEEN %s AND %s
+                GROUP BY p.id_produto, p.nome_produto, cp.nome_categoria, cp.tipo_categoria
+                ORDER BY quantidade_total DESC, faturamento_total DESC
+                LIMIT 8;
+            """
+            cursor.execute(sql_produtos_mais_vendidos, [data_inicio, data_fim])
+            produtos_mais_vendidos = dictfetchall(cursor)
+
+            sql_contas_consumo_abertas = """
+                SELECT
+                    cc.id_conta,
+                    r.id_reserva,
+                    h.nome_hospede,
+                    MIN(q.numero) AS numero_quarto,
+                    cc.total_acumulado,
+                    cc.dt_abertura
+                FROM conta_consumo cc
+                JOIN reserva r ON r.id_reserva = cc.fk_reserva
+                LEFT JOIN hospede h ON h.id_hospede = r.fk_hospede_titular
+                LEFT JOIN reserva_quarto rq ON rq.fk_reserva = r.id_reserva
+                LEFT JOIN quarto q ON q.id_quarto = rq.fk_quarto
+                WHERE cc.status_conta = 'Aberta'
+                GROUP BY
+                    cc.id_conta,
+                    r.id_reserva,
+                    h.nome_hospede,
+                    cc.total_acumulado,
+                    cc.dt_abertura
+                ORDER BY cc.total_acumulado DESC, cc.dt_abertura ASC
+                LIMIT 6;
+            """
+            cursor.execute(sql_contas_consumo_abertas)
+            contas_consumo_abertas = dictfetchall(cursor)
+
         response_data = {
             'kpis': kpi_data,
             'taxa_ocupacao': taxa_ocupacao,
@@ -1874,6 +1976,10 @@ def get_indicadores_gestao(request):
             'faturamento_por_tipo': faturamento_por_tipo,
             'reservas_por_status': reservas_por_status,
             'pagamentos_pendentes': pagamentos_pendentes,
+            'consumo_resumo': consumo_resumo,
+            'consumo_por_origem': consumo_por_origem,
+            'produtos_mais_vendidos': produtos_mais_vendidos,
+            'contas_consumo_abertas': contas_consumo_abertas,
             'ano_filtrado': ano_filtrar
         }
         return success_response(response_data)
@@ -1934,11 +2040,26 @@ def get_reservas_pendentes(request):
 
 
 # =======================================================================
-# MODULO DE CONSUMO (RESTAURANTE, BAR E LOJINHA)
+# MODULO DE CONSUMO (BEBIDAS E LOJINHA)
 # =======================================================================
 
 TIPOS_CONSUMO_VALIDOS = ('Restaurante', 'Lojinha', 'Outros')
 STATUS_ATIVO_VALIDOS = ('Ativo', 'Inativo')
+CATEGORIA_BEBIDAS_CONSUMO = 'Bebidas'
+
+
+def _is_categoria_bebidas(nome_categoria):
+    return (nome_categoria or '').strip().lower() == CATEGORIA_BEBIDAS_CONSUMO.lower()
+
+
+def _validar_categoria_open_food(tipo_categoria, nome_categoria):
+    if tipo_categoria == 'Restaurante' and not _is_categoria_bebidas(nome_categoria):
+        return error_response(
+            'No pacote open food, a origem Bebidas aceita apenas a categoria Bebidas.',
+            'CATEGORIA_OPEN_FOOD_INVALIDA',
+            400,
+        )
+    return None
 
 
 def _parse_json_body(request):
@@ -2001,6 +2122,10 @@ def _validar_categoria_consumo_payload(data):
 
     if ativo not in STATUS_ATIVO_VALIDOS:
         return None, error_response('Status da categoria invalido.', 'VALIDATION_ERROR', 400)
+
+    open_food_error = _validar_categoria_open_food(tipo_categoria, nome_categoria)
+    if open_food_error:
+        return None, open_food_error
 
     return {
         'nome_categoria': nome_categoria,
@@ -2136,9 +2261,28 @@ def consumo_produtos_view(request):
 
         try:
             with connection.cursor() as cursor:
-                cursor.execute("SELECT id_categoria FROM categoria_produto WHERE id_categoria = %s;", [payload['fk_categoria']])
-                if not cursor.fetchone():
+                cursor.execute(
+                    """
+                    SELECT id_categoria, nome_categoria, tipo_categoria, ativo
+                    FROM categoria_produto
+                    WHERE id_categoria = %s;
+                    """,
+                    [payload['fk_categoria']]
+                )
+                categoria_result = dictfetchall(cursor)
+                if not categoria_result:
                     return error_response('Categoria nao encontrada.', 'NOT_FOUND', 404)
+
+                categoria = categoria_result[0]
+                if categoria['ativo'] != 'Ativo':
+                    return error_response('Categoria inativa para cadastro de produto.', 'CATEGORIA_INATIVA', 400)
+
+                open_food_error = _validar_categoria_open_food(
+                    categoria['tipo_categoria'],
+                    categoria['nome_categoria'],
+                )
+                if open_food_error:
+                    return open_food_error
 
                 cursor.execute(
                     """
@@ -2309,9 +2453,28 @@ def consumo_produto_detail_view(request, produto_id):
 
     try:
         with connection.cursor() as cursor:
-            cursor.execute("SELECT id_categoria FROM categoria_produto WHERE id_categoria = %s;", [payload['fk_categoria']])
-            if not cursor.fetchone():
+            cursor.execute(
+                """
+                SELECT id_categoria, nome_categoria, tipo_categoria, ativo
+                FROM categoria_produto
+                WHERE id_categoria = %s;
+                """,
+                [payload['fk_categoria']]
+            )
+            categoria_result = dictfetchall(cursor)
+            if not categoria_result:
                 return error_response('Categoria nao encontrada.', 'NOT_FOUND', 404)
+
+            categoria = categoria_result[0]
+            if categoria['ativo'] != 'Ativo':
+                return error_response('Categoria inativa para cadastro de produto.', 'CATEGORIA_INATIVA', 400)
+
+            open_food_error = _validar_categoria_open_food(
+                categoria['tipo_categoria'],
+                categoria['nome_categoria'],
+            )
+            if open_food_error:
+                return open_food_error
 
             cursor.execute(
                 """
@@ -2494,7 +2657,8 @@ def consumo_vendas_view(request):
                         p.preco_atual,
                         p.controla_estoque,
                         p.estoque_atual,
-                        c.tipo_categoria
+                        c.tipo_categoria,
+                        c.nome_categoria
                     FROM produto p
                     JOIN categoria_produto c ON c.id_categoria = p.fk_categoria
                     WHERE p.id_produto = %s
@@ -2520,6 +2684,13 @@ def consumo_vendas_view(request):
                             'origem_produto': produto['tipo_categoria'],
                         }
                     )
+
+                open_food_error = _validar_categoria_open_food(
+                    produto['tipo_categoria'],
+                    produto['nome_categoria'],
+                )
+                if open_food_error:
+                    return open_food_error
 
                 if produto['controla_estoque'] and produto['estoque_atual'] < quantidade:
                     return error_response(

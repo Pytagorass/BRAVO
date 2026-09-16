@@ -42,7 +42,7 @@ urlpatterns = [
     
     # PUT: /api/agenda/editar/<id>/ (Usado pelo formulário de Edição)
     path('agenda/editar/<int:reserva_quarto_id>/', views.edit_reserva_view, name='edit_reserva_view'),
-    # --- Rotas de Consumo (Restaurante, Bar e Lojinha) ---
+    # --- Rotas de Consumo (Bebidas e Lojinha) ---
     path('consumo/categorias/', views.consumo_categorias_view, name='consumo_categorias'),
     path('consumo/produtos/', views.consumo_produtos_view, name='consumo_produtos'),
     path('consumo/produtos/<int:produto_id>/', views.consumo_produto_detail_view, name='consumo_produto_detail'),

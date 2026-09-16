@@ -16,7 +16,7 @@ void main() {
     );
 
     expect(find.text('BRAVO Consumo'), findsOneWidget);
-    expect(find.text('Restaurante'), findsWidgets);
-    expect(find.text('Lojinha'), findsOneWidget);
+    expect(find.text('Bebidas'), findsWidgets);
+    expect(find.text('Lojinha'), findsWidgets);
   });
 }

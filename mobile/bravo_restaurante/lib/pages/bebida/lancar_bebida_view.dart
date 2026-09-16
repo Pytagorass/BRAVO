@@ -339,7 +339,7 @@ class _LancarBebidaViewState extends State<LancarBebidaView> {
   }
 
   Widget _buildBotaoCancelar() {
-    // Cancela o lancamento do bar sem enviar nada para o banco.
+    // Cancela o lancamento de bebida sem enviar nada para o banco.
 
     // Habilita o botao apenas quando reserva e bebida foram selecionadas.
     final habilitado = reservaSelecionada != null && bebidaSelecionada != null;

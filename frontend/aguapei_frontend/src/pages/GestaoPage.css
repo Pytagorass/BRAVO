@@ -151,6 +151,217 @@
   padding: 18px;
 }
 
+.gestao-consumo-row {
+  align-items: stretch;
+}
+
+.gestao-consumo-panel {
+  background: #ffffff;
+  border: 1px solid #d8dee6;
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+  height: 100%;
+}
+
+.gestao-consumo-panel .card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+}
+
+.consumo-panel-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.gestao-mini-action {
+  border-radius: 6px;
+  flex: 0 0 auto;
+  font-weight: 800;
+}
+
+.consumo-metric-list {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.consumo-metric-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  min-height: 74px;
+  padding: 12px;
+}
+
+.consumo-metric-item span {
+  color: #64748b;
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 7px;
+  text-transform: uppercase;
+}
+
+.consumo-metric-item strong {
+  color: #111827;
+  display: block;
+  font-size: 20px;
+  font-weight: 850;
+  line-height: 1.1;
+}
+
+.consumo-open-total {
+  align-items: center;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  color: #1e3a8a;
+  display: flex;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 8px;
+  margin-top: auto;
+  padding: 11px 12px;
+}
+
+.gestao-compact-table-shell {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.gestao-compact-table {
+  margin-bottom: 0;
+}
+
+.gestao-compact-table tbody td {
+  color: #334155;
+  padding: 11px 12px;
+  vertical-align: middle;
+}
+
+.origin-pill {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1;
+  padding: 7px 9px;
+}
+
+.origin-pill.restaurante {
+  background: #ecfdf3;
+  color: #166534;
+}
+
+.origin-pill.lojinja {
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.origin-pill.outros {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.top-products-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.top-product-item {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 11px;
+}
+
+.top-product-rank {
+  align-items: center;
+  background: #26522c;
+  border-radius: 999px;
+  color: #ffffff;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 850;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+
+.top-product-main {
+  min-width: 0;
+}
+
+.top-product-main strong,
+.top-product-main span,
+.top-product-value strong,
+.top-product-value span {
+  display: block;
+}
+
+.top-product-main strong {
+  color: #111827;
+  font-size: 14px;
+  font-weight: 850;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.top-product-main span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 3px;
+}
+
+.top-product-value {
+  text-align: right;
+}
+
+.top-product-value strong {
+  color: #111827;
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.top-product-value span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.gestao-empty-block {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  color: #64748b;
+  display: flex;
+  font-size: 13px;
+  font-weight: 800;
+  justify-content: center;
+  min-height: 160px;
+  padding: 16px;
+  text-align: center;
+}
+
+.gestao-open-accounts-panel {
+  height: auto;
+}
+
 .chart-panel-header {
   align-items: flex-start;
   display: flex;
@@ -392,6 +603,14 @@
     width: 100%;
   }
 
+  .consumo-panel-heading {
+    flex-direction: column;
+  }
+
+  .gestao-mini-action {
+    width: 100%;
+  }
+
   .chart-container {
     height: 280px;
   }
@@ -420,6 +639,19 @@
 
   .chart-container-secondary {
     height: 260px;
+  }
+
+  .consumo-metric-list {
+    grid-template-columns: 1fr;
+  }
+
+  .top-product-item {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .top-product-value {
+    grid-column: 2;
+    text-align: left;
   }
 
   .kpi-card-value {

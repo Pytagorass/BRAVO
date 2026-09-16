@@ -1,5 +1,5 @@
 // Representa um produto cadastrado no banco.
-// Pode ser comida, bebida ou outra categoria usada pelos dropdowns.
+// Pode ser bebida, produto da lojinha ou outra categoria usada pelos dropdowns.
 class Produto {
   // Campos principais da tabela produto.
   final String idProduto;

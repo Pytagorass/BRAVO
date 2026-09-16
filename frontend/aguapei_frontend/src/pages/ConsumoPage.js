@@ -14,6 +14,7 @@ import {
 import './ConsumoPage.css';
 
 const ORIGENS = ['Restaurante', 'Lojinha'];
+const ORIGENS_CATEGORIA = ['Lojinha'];
 
 const produtoInicial = {
   tipo_categoria: 'Restaurante',
@@ -29,7 +30,7 @@ const produtoInicial = {
 
 const categoriaInicial = {
   nome_categoria: '',
-  tipo_categoria: 'Restaurante',
+  tipo_categoria: 'Lojinha',
 };
 
 const formatMoney = (value) =>
@@ -37,6 +38,8 @@ const formatMoney = (value) =>
     style: 'currency',
     currency: 'BRL',
   });
+
+const formatOrigemConsumo = (origem) => (origem === 'Restaurante' ? 'Bebidas' : origem);
 
 const ConsumoPage = () => {
   const [produtos, setProdutos] = useState([]);
@@ -92,14 +95,14 @@ const ConsumoPage = () => {
 
   const resumo = useMemo(() => {
     const ativos = produtos.filter((produto) => produto.ativo === 'Ativo').length;
-    const restaurante = produtos.filter((produto) => produto.tipo_categoria === 'Restaurante').length;
+    const bebidas = produtos.filter((produto) => produto.tipo_categoria === 'Restaurante').length;
     const estoqueBaixo = produtos.filter(
       (produto) =>
         produto.controla_estoque &&
         Number(produto.estoque_atual || 0) <= Number(produto.estoque_minimo || 0)
     ).length;
 
-    return { ativos, restaurante, estoqueBaixo };
+    return { ativos, bebidas, estoqueBaixo };
   }, [produtos]);
 
   const limparProdutoForm = () => {
@@ -256,7 +259,7 @@ const ConsumoPage = () => {
                   </td>
                   <td>
                     <span className={`consumo-origin-pill ${produto.tipo_categoria.toLowerCase()}`}>
-                      {produto.tipo_categoria}
+                      {formatOrigemConsumo(produto.tipo_categoria)}
                     </span>
                     <span className="consumo-category-text">{produto.nome_categoria}</span>
                   </td>
@@ -314,7 +317,7 @@ const ConsumoPage = () => {
       <div className="page-header">
         <div className="page-title-block">
           <h1>Gestao de Consumo</h1>
-          <span className="page-title-meta">Produtos, precos e estoque para restaurante e lojinha</span>
+          <span className="page-title-meta">Produtos, precos e estoque para bebidas e lojinha</span>
         </div>
 
         <div className="consumo-toolbar">
@@ -330,7 +333,7 @@ const ConsumoPage = () => {
                     : {}
                 }
               >
-                {origem}
+                {formatOrigemConsumo(origem)}
               </Button>
             ))}
           </ButtonGroup>
@@ -364,8 +367,8 @@ const ConsumoPage = () => {
           <strong>{resumo.ativos}</strong>
         </div>
         <div className="summary-card">
-          <span className="summary-label">Restaurante</span>
-          <strong>{resumo.restaurante}</strong>
+          <span className="summary-label">Bebidas</span>
+          <strong>{resumo.bebidas}</strong>
         </div>
         <div className="summary-card">
           <span className="summary-label">Estoque baixo</span>
@@ -389,7 +392,7 @@ const ConsumoPage = () => {
               >
                 {ORIGENS.map((origem) => (
                   <option key={origem} value={origem}>
-                    {origem}
+                    {formatOrigemConsumo(origem)}
                   </option>
                 ))}
               </Form.Select>
@@ -502,7 +505,7 @@ const ConsumoPage = () => {
           <div className="consumo-category-box">
             <div className="consumo-panel-title small">
               <Tag size={16} />
-              <span>Nova Categoria</span>
+              <span>Nova Categoria da Lojinha</span>
             </div>
             <Form onSubmit={handleSubmitCategoria}>
               <Form.Group className="mb-2">
@@ -521,9 +524,9 @@ const ConsumoPage = () => {
                     setCategoriaForm((prev) => ({ ...prev, tipo_categoria: event.target.value }))
                   }
                 >
-                  {ORIGENS.map((origem) => (
+                  {ORIGENS_CATEGORIA.map((origem) => (
                     <option key={origem} value={origem}>
-                      {origem}
+                      {formatOrigemConsumo(origem)}
                     </option>
                   ))}
                 </Form.Select>

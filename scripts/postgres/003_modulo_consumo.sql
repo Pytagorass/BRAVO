@@ -1,5 +1,5 @@
 -- ===================================================================
--- Modulo de consumo: restaurante, bar e lojinha
+-- Modulo de consumo: bebidas e lojinha
 -- Projeto: BRAVO
 --
 -- Como executar:
@@ -170,7 +170,6 @@ CREATE INDEX IF NOT EXISTS idx_movimento_estoque_item ON movimento_estoque(fk_it
 -- -------------------------------------------------------------------
 INSERT INTO categoria_produto (nome_categoria, tipo_categoria)
 VALUES
-    ('Comidas', 'Restaurante'),
     ('Bebidas', 'Restaurante'),
     ('Lembrancas', 'Lojinha'),
     ('Vestuarios', 'Lojinha')

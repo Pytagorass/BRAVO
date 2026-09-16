@@ -8,7 +8,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchIndicadoresGestao, fetchReservasPendentesGestao, fetchAgendaReservas } from '../services/api';
 import { Row, Col, Spinner, Alert, Button, Form, Card, Badge, Modal, Table } from 'react-bootstrap';
-import { AlertTriangle, BarChart2, FileText, RefreshCw } from 'react-feather';
+import { AlertTriangle, BarChart2, CreditCard, FileText, Package, RefreshCw, ShoppingBag } from 'react-feather';
 import './GestaoPage.css';
 
 import { Bar, Doughnut } from 'react-chartjs-2';
@@ -55,6 +55,8 @@ const formatNumber = (value) =>
 
 // Converte número em string decimal com a quantidade de casas informada.
 const formatDecimal = (value, digits = 2) => (Number(value) || 0).toFixed(digits);
+
+const formatOrigemConsumo = (origem) => (origem === 'Restaurante' ? 'Bebidas' : origem);
 
 const STATUS_BADGE_VARIANT = {
   Agendada: 'warning',
@@ -281,6 +283,10 @@ const GestaoPage = () => {
       faturamento_mensal,
       faturamento_por_tipo,
       pagamentos_pendentes = {},
+      consumo_resumo = {},
+      consumo_por_origem = [],
+      produtos_mais_vendidos = [],
+      contas_consumo_abertas = [],
       ano_filtrado,
     } = indicadores;
     const pagamentosValor = Number(pagamentos_pendentes?.valor_pendente || 0);
@@ -288,6 +294,11 @@ const GestaoPage = () => {
     const temPendencias = pagamentosValor > 0 || reservasPendentes > 0;
     const diasVendidosFmt = formatNumber(taxa_ocupacao?.total_dias_vendidos || 0);
     const diasBaseFmt = formatNumber(taxa_ocupacao?.total_dias_base || 0);
+    const consumoTotal = Number(consumo_resumo?.faturamento_total || 0);
+    const consumoVendas = Number(consumo_resumo?.total_vendas || 0);
+    const consumoTicketMedio = Number(consumo_resumo?.ticket_medio || 0);
+    const contasAbertas = Number(consumo_resumo?.contas_abertas || 0);
+    const totalContasAbertas = Number(consumo_resumo?.total_contas_abertas || 0);
     const barChartLabels = faturamento_mensal.map((item) => formatChartLabel(item.mes_ano));
     const barChartDataPoints = faturamento_mensal.map(
       (item) => parseFloat(item.faturamento_mensal) || 0
@@ -477,6 +488,184 @@ const GestaoPage = () => {
             </Card>
           </Col>
         </Row>
+
+        <Row className="gestao-consumo-row mb-4">
+          <Col xl={4} lg={6} className="mb-3">
+            <Card className="gestao-consumo-panel">
+              <Card.Body>
+                <div className="consumo-panel-heading">
+                  <div>
+                    <h2 className="chart-panel-title">
+                      <ShoppingBag size={18} aria-hidden="true" />
+                      Consumo Mobile
+                    </h2>
+                    <p className="chart-panel-meta">
+                      Bebidas e lojinha em {ano_filtrado}.
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline-success"
+                    size="sm"
+                    className="gestao-mini-action"
+                    onClick={() => navigate('/consumo')}
+                  >
+                    Produtos
+                  </Button>
+                </div>
+
+                <div className="consumo-metric-list">
+                  <div className="consumo-metric-item">
+                    <span>Faturamento</span>
+                    <strong>{formatCurrency(consumoTotal)}</strong>
+                  </div>
+                  <div className="consumo-metric-item">
+                    <span>Vendas confirmadas</span>
+                    <strong>{formatNumber(consumoVendas)}</strong>
+                  </div>
+                  <div className="consumo-metric-item">
+                    <span>Ticket medio</span>
+                    <strong>{formatCurrency(consumoTicketMedio)}</strong>
+                  </div>
+                  <div className="consumo-metric-item">
+                    <span>Contas abertas</span>
+                    <strong>{formatNumber(contasAbertas)}</strong>
+                  </div>
+                </div>
+
+                <div className="consumo-open-total">
+                  <CreditCard size={16} aria-hidden="true" />
+                  <span>{formatCurrency(totalContasAbertas)} em contas abertas</span>
+                </div>
+              </Card.Body>
+            </Card>
+          </Col>
+
+          <Col xl={4} lg={6} className="mb-3">
+            <Card className="gestao-consumo-panel">
+              <Card.Body>
+                <div className="consumo-panel-heading">
+                  <div>
+                    <h2 className="chart-panel-title">
+                      <BarChart2 size={18} aria-hidden="true" />
+                      Consumo por origem
+                    </h2>
+                    <p className="chart-panel-meta">Onde o consumo esta acontecendo.</p>
+                  </div>
+                </div>
+
+                {consumo_por_origem.length > 0 ? (
+                  <div className="gestao-compact-table-shell">
+                    <Table responsive size="sm" className="gestao-compact-table">
+                      <thead>
+                        <tr>
+                          <th>Origem</th>
+                          <th>Vendas</th>
+                          <th>Itens</th>
+                          <th className="text-end">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {consumo_por_origem.map((origem) => (
+                          <tr key={origem.origem}>
+                            <td>
+                              <span className={`origin-pill ${String(origem.origem).toLowerCase()}`}>
+                                {formatOrigemConsumo(origem.origem)}
+                              </span>
+                            </td>
+                            <td>{formatNumber(origem.total_vendas)}</td>
+                            <td>{formatNumber(origem.quantidade_itens)}</td>
+                            <td className="text-end fw-bold">{formatCurrency(origem.faturamento)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="gestao-empty-block">Nenhuma venda de consumo no periodo.</div>
+                )}
+              </Card.Body>
+            </Card>
+          </Col>
+
+          <Col xl={4} className="mb-3">
+            <Card className="gestao-consumo-panel">
+              <Card.Body>
+                <div className="consumo-panel-heading">
+                  <div>
+                    <h2 className="chart-panel-title">
+                      <Package size={18} aria-hidden="true" />
+                      Produtos mais vendidos
+                    </h2>
+                    <p className="chart-panel-meta">Ranking por quantidade vendida.</p>
+                  </div>
+                </div>
+
+                {produtos_mais_vendidos.length > 0 ? (
+                  <div className="top-products-list">
+                    {produtos_mais_vendidos.slice(0, 5).map((produto, index) => (
+                      <div className="top-product-item" key={produto.id_produto}>
+                        <span className="top-product-rank">{index + 1}</span>
+                        <div className="top-product-main">
+                          <strong>{produto.nome_produto}</strong>
+                          <span>
+                            {produto.nome_categoria} · {formatOrigemConsumo(produto.origem)}
+                          </span>
+                        </div>
+                        <div className="top-product-value">
+                          <strong>{formatNumber(produto.quantidade_total)}</strong>
+                          <span>{formatCurrency(produto.faturamento_total)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="gestao-empty-block">Nenhum produto vendido no periodo.</div>
+                )}
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+
+        {contas_consumo_abertas.length > 0 && (
+          <Card className="gestao-consumo-panel gestao-open-accounts-panel mb-4">
+            <Card.Body>
+              <div className="consumo-panel-heading">
+                <div>
+                  <h2 className="chart-panel-title">
+                    <CreditCard size={18} aria-hidden="true" />
+                    Contas de consumo abertas
+                  </h2>
+                  <p className="chart-panel-meta">Reservas com consumo ainda nao fechado.</p>
+                </div>
+              </div>
+
+              <div className="gestao-compact-table-shell">
+                <Table responsive size="sm" className="gestao-compact-table">
+                  <thead>
+                    <tr>
+                      <th>Conta</th>
+                      <th>Hospede</th>
+                      <th>Quarto</th>
+                      <th>Abertura</th>
+                      <th className="text-end">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {contas_consumo_abertas.map((conta) => (
+                      <tr key={conta.id_conta}>
+                        <td>#{conta.id_conta}</td>
+                        <td>{conta.nome_hospede || 'Nao informado'}</td>
+                        <td>{conta.numero_quarto || '-'}</td>
+                        <td>{formatDate(conta.dt_abertura)}</td>
+                        <td className="text-end fw-bold">{formatCurrency(conta.total_acumulado)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </div>
+            </Card.Body>
+          </Card>
+        )}
 
         <Row className="gestao-chart-row">
           <Col lg={8} className="mb-3 mb-lg-0">

@@ -99,7 +99,7 @@ class _ContaHospedeViewState extends State<ContaHospedeView> {
                       // Aviso inicial explicando o objetivo desta consulta.
                       const AlertaInformacoesPagina(
                         message:
-                            'Consulte restaurante, lojinha, bebidas e total acumulado de uma reserva aberta.',
+                            'Consulte lojinha, bebidas e total acumulado de uma reserva aberta.',
                       ),
 
                       const SizedBox(height: 16),
@@ -150,7 +150,7 @@ class _ContaDetalhes extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Mostra o resumo financeiro e as duas origens de consumo: pedidos e bebidas.
+    // Mostra o resumo financeiro e as duas origens de consumo: lojinha e bebidas.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -161,22 +161,22 @@ class _ContaDetalhes extends StatelessWidget {
         ),
         const SizedBox(height: 18),
         const Text(
-          'Restaurante / Lojinha',
+          'Lojinha',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         const SizedBox(height: 8),
         if (conta.pedidos.isEmpty)
-          const _MensagemCard(mensagem: 'Nenhum consumo registrado.')
+          const _MensagemCard(mensagem: 'Nenhum produto da lojinha registrado.')
         else
           ...conta.pedidos.map((pedido) => _PedidoCard(pedido: pedido)),
         const SizedBox(height: 18),
         const Text(
-          'Bar',
+          'Bebidas',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         const SizedBox(height: 8),
         if (conta.bebidas.isEmpty)
-          const _MensagemCard(mensagem: 'Nenhum pedido ao bar realizado.')
+          const _MensagemCard(mensagem: 'Nenhuma bebida lancada.')
         else
           ...conta.bebidas.map((bebida) => _BebidaCard(bebida: bebida)),
       ],
@@ -195,6 +195,7 @@ class _PedidoCard extends StatelessWidget {
     final dataPedido = _formatarDataConta(pedido.createdAt);
 
     return ConsumoCard(
+      titulo: 'Venda da lojinha',
       data: dataPedido,
       observacao: pedido.observacao,
       itens: pedido.itens.map((item) {
@@ -212,10 +213,11 @@ class _BebidaCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Card do bar no mesmo padrao visual dos pedidos do restaurante.
+    // Card de bebida no mesmo padrao visual dos itens da lojinha.
     final dataPedido = _formatarDataConta(bebida.createdAt);
 
     return ConsumoCard(
+      titulo: 'Bebida',
       data: dataPedido,
       observacao: bebida.observacao,
       itens: [
