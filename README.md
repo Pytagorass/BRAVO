@@ -1,58 +1,166 @@
-# Barco-Hotel (Aguapeí)
+# BRAVO - Barco-Hotel Aguapei
 
-Sistema de gestão para o Barco-Hotel Aguapeí. O backend usa Django com SQL puro (sem ORM) e o frontend é React.
+Sistema de gestao para operacao de barco-hotel, com backend em Django e frontend em React.
 
-## Requisitos
+O projeto usa PostgreSQL como banco de dados e SQL direto no backend, sem ORM para as regras principais da aplicacao.
 
+## Tecnologias
+
+- Python 3.11+
+- Django
 - PostgreSQL 13+
-- Python 3.11+ com `pip`
 - Node.js 18+
+- React
 
-## Preparando o Banco
+## Estrutura do Projeto
 
-1. Crie um banco vazio.
-2. Execute `schema.sql` no PgAdmin/psql:
-   ```sql
-   \i /caminho/para/schema.sql
-   ```
-   O script cria tabelas, índices e um usuário administrador (`admin@aguapei.local / 123456`).
-3. Para gerar hashes personalizados:
-   ```python
-   import bcrypt
-   bcrypt.hashpw("sua_senha".encode(), bcrypt.gensalt()).decode()
-   ```
-   Atualize a tabela `usuario` com o hash resultante.
-
-## Backend
-
-```bash
-cd backend
-pip install -r requirements.txt
-python manage.py runserver
+```text
+BRAVO/
+  backend/                  API Django
+  frontend/aguapei_frontend/ Frontend React
+  scripts/postgres/          Scripts auxiliares de banco
+  schema.sql                 Estrutura principal do banco
 ```
 
-- Todas as views usam SQL puro via `django.db.connection`.
-- Variáveis principais:
-  - `backend/api/views.py`: criação/edição de reservas.
-  - `schema.sql`: estrutura do banco.
+## Banco de Dados
 
-## Frontend
+O backend esta configurado em `backend/aguapei_backend/settings.py` para conectar em:
 
-```bash
-cd frontend/aguapei_frontend
+```text
+Banco: Barco_Hotel
+Usuario: postgres
+Senha: 123
+Host: localhost
+Porta: 5432
+```
+
+Crie o banco no PostgreSQL com o nome `Barco_Hotel` e execute o arquivo `schema.sql`.
+
+No `psql`:
+
+```sql
+\i C:/Users/pytag/BRAVO/schema.sql
+```
+
+No Windows, se o `psql` nao estiver no PATH, use o caminho completo:
+
+```powershell
+& "C:\Program Files\PostgreSQL\17\bin\psql.exe" "postgresql://postgres:123@localhost:5432/Barco_Hotel" -f "C:\Users\pytag\BRAVO\schema.sql"
+```
+
+O script cria as tabelas principais e um usuario administrador.
+
+## Login Padrao
+
+```text
+Email: admin@aguapei.local
+Senha: 123456
+```
+
+## Rodando o Backend
+
+Abra um terminal PowerShell:
+
+```powershell
+cd C:\Users\pytag\BRAVO\backend
+python -m pip install Django django-cors-headers PyJWT bcrypt psycopg2-binary
+python manage.py runserver 127.0.0.1:8000
+```
+
+A API ficara disponivel em:
+
+```text
+http://127.0.0.1:8000/api
+```
+
+Para validar a configuracao do Django sem subir o servidor:
+
+```powershell
+python manage.py check
+```
+
+## Rodando o Frontend
+
+Abra outro terminal PowerShell:
+
+```powershell
+cd C:\Users\pytag\BRAVO\frontend\aguapei_frontend
 npm install
 npm start
 ```
 
-## Fluxo de Reserva
+O frontend ficara disponivel em:
 
-1. Selecionar titular/quarto.
-2. Definir datas e status de pagamento.
-3. Confirmar no modal de revisão.
-4. Após salvar, o Gantt é atualizado automaticamente.
+```text
+http://localhost:3000
+```
 
-## Observações
+O frontend chama o backend em:
 
-- `reserva.fk_hospede_titular` guarda o titular; `reserva_hospede` armazena apenas acompanhantes.
-- `status_pagamento` controla o que é exibido no frontend.
-- O script `schema.sql` pode ser reaplicado em bancos vazios sem ajustes extras.**
+```text
+http://127.0.0.1:8000/api
+```
+
+## Fluxo Basico de Uso
+
+1. Suba o PostgreSQL.
+2. Confirme que o banco `Barco_Hotel` existe.
+3. Rode o backend Django na porta `8000`.
+4. Rode o frontend React na porta `3000`.
+5. Acesse `http://localhost:3000`.
+6. Entre com o usuario administrador padrao.
+
+## Arquivos Importantes
+
+- `backend/aguapei_backend/settings.py`: configuracao do Django e conexao com o banco.
+- `backend/api/views.py`: endpoints da API e regras principais.
+- `backend/api/urls.py`: rotas da API.
+- `frontend/aguapei_frontend/src/services/api.js`: configuracao do Axios e URL do backend.
+- `schema.sql`: criacao das tabelas e dados iniciais.
+
+## Problemas Comuns
+
+### Erro de conexao com o servidor no frontend
+
+Confirme que o backend esta rodando:
+
+```powershell
+cd C:\Users\pytag\BRAVO\backend
+python manage.py runserver 127.0.0.1:8000
+```
+
+### Erro de conexao com PostgreSQL
+
+Confira se o servico do PostgreSQL esta ativo e se as credenciais em `settings.py` batem com a sua instalacao local.
+
+No Windows:
+
+```powershell
+Get-Service *postgres*
+```
+
+### `psql` nao reconhecido
+
+Use o caminho completo do executavel:
+
+```powershell
+& "C:\Program Files\PostgreSQL\17\bin\psql.exe"
+```
+
+### Porta 3000 ocupada
+
+O React pode oferecer outra porta automaticamente. Se aparecer a pergunta no terminal, confirme com `Y`.
+
+### Porta 8000 ocupada
+
+Rode o backend em outra porta:
+
+```powershell
+python manage.py runserver 127.0.0.1:8001
+```
+
+Se mudar a porta do backend, atualize tambem a `baseURL` em:
+
+```text
+frontend/aguapei_frontend/src/services/api.js
+```
