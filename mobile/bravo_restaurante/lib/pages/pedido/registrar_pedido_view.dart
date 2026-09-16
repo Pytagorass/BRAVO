@@ -228,18 +228,18 @@ class _RegistrarPedidoViewState extends State<RegistrarPedidoView> {
       return;
     }
 
-    setState(() {
-      salvandoPedido = true;
-    });
-
     final usuarioLogado = context.read<UsuarioViewModel>().usuarioLogado;
     if (usuarioLogado == null) {
-      setState(() {
-        salvandoPedido = false;
-      });
       _mostrarMensagem('Usuario logado nao encontrado.');
       return;
     }
+
+    final confirmar = await _mostrarConfirmacaoLancamento();
+    if (!mounted || !confirmar) return;
+
+    setState(() {
+      salvandoPedido = true;
+    });
 
     final pedidoVM = context.read<PedidoViewModel>();
     final sucesso = await pedidoVM.gravarContaConsumo(
@@ -271,6 +271,67 @@ class _RegistrarPedidoViewState extends State<RegistrarPedidoView> {
     });
 
     _mostrarMensagem('Consumo confirmado e vinculado a conta do cliente.');
+  }
+
+  Future<bool> _mostrarConfirmacaoLancamento() async {
+    final reserva = reservaSelecionada;
+
+    if (reserva == null) return false;
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Confirmar lancamento'),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Reserva: ${reserva.descricaoDropdown}'),
+                const SizedBox(height: 10),
+                const Text(
+                  'Itens:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 6),
+                ...itensPedido.map((item) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '${item.quantidade}x ${item.produto.nomeProduto} - R\$ ${item.subtotal.toStringAsFixed(2)}',
+                    ),
+                  );
+                }),
+                const Divider(height: 24),
+                Text(
+                  'Total: R\$ ${totalPedido.toStringAsFixed(2)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                const Text('Deseja lancar estes produtos na conta do cliente?'),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: CoresApp.verdeEscuro,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Confirmar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return confirmar == true;
   }
 
   String? _observacaoPedido() {

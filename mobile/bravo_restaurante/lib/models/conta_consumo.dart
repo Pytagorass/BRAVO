@@ -1,5 +1,7 @@
+import 'package:bravo_restaurante/models/lavanderia.dart';
+
 // Representa a conta de consumo de uma reserva.
-// Junta total, status e os consumos carregados em pedidos e bebidas.
+// Junta total, status e os consumos carregados em lojinha, bebidas e lavanderia.
 class ContaConsumo {
   // Identificacao da conta e da reserva dona dessa conta.
   final String idConta;
@@ -12,6 +14,7 @@ class ContaConsumo {
   // Listas detalhadas usadas pela tela Conta do Hospede.
   final List<PedidoConta> pedidos;
   final List<BebidaConta> bebidas;
+  final List<OrdemLavanderia> lavanderias;
 
   ContaConsumo({
     required this.idConta,
@@ -20,6 +23,7 @@ class ContaConsumo {
     required this.statusConta,
     required this.pedidos,
     required this.bebidas,
+    required this.lavanderias,
   });
 
   // Cria uma ContaConsumo a partir do Map da tabela conta_consumo.
@@ -27,6 +31,7 @@ class ContaConsumo {
     Map<String, dynamic> map, {
     List<PedidoConta> pedidos = const [],
     List<BebidaConta> bebidas = const [],
+    List<OrdemLavanderia> lavanderias = const [],
   }) {
     // A conta vem da tabela conta_consumo; pedidos e bebidas são carregados
     // separadamente pelo ViewModel para simplificar as consultas.
@@ -37,6 +42,7 @@ class ContaConsumo {
       statusConta: map['status_conta'] ?? '',
       pedidos: pedidos,
       bebidas: bebidas,
+      lavanderias: lavanderias,
     );
   }
 }

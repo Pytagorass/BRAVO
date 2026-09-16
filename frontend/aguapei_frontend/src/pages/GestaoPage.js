@@ -519,7 +519,7 @@ const GestaoPage = () => {
                     <strong>{formatCurrency(consumoTotal)}</strong>
                   </div>
                   <div className="consumo-metric-item">
-                    <span>Vendas confirmadas</span>
+                    <span>Lancamentos confirmados</span>
                     <strong>{formatNumber(consumoVendas)}</strong>
                   </div>
                   <div className="consumo-metric-item">
@@ -594,7 +594,7 @@ const GestaoPage = () => {
                   <div>
                     <h2 className="chart-panel-title">
                       <Package size={18} aria-hidden="true" />
-                      Produtos mais vendidos
+                      Produtos e servicos mais vendidos
                     </h2>
                     <p className="chart-panel-meta">Ranking por quantidade vendida.</p>
                   </div>

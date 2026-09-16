@@ -48,6 +48,10 @@ urlpatterns = [
     path('consumo/produtos/<int:produto_id>/', views.consumo_produto_detail_view, name='consumo_produto_detail'),
     path('consumo/reservas-abertas/', views.consumo_reservas_abertas_view, name='consumo_reservas_abertas'),
     path('consumo/vendas/', views.consumo_vendas_view, name='consumo_vendas'),
+    path('consumo/lavanderia/categorias/', views.consumo_lavanderia_categorias_view, name='consumo_lavanderia_categorias'),
+    path('consumo/lavanderia/servicos/', views.consumo_lavanderia_servicos_view, name='consumo_lavanderia_servicos'),
+    path('consumo/lavanderia/ordens/', views.consumo_lavanderia_ordens_view, name='consumo_lavanderia_ordens'),
+    path('consumo/lavanderia/ordens/<int:ordem_id>/status/', views.consumo_lavanderia_ordem_status_view, name='consumo_lavanderia_ordem_status'),
     path('consumo/contas/<int:conta_id>/', views.consumo_conta_detail_view, name='consumo_conta_detail'),
     path('consumo/contas/<int:conta_id>/fechar/', views.consumo_fechar_conta_view, name='consumo_fechar_conta'),
 ]

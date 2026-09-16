@@ -89,6 +89,9 @@ class _LancarBebidaViewState extends State<LancarBebidaView> {
       return;
     }
 
+    final confirmar = await _mostrarConfirmacaoLancamento();
+    if (!mounted || !confirmar) return;
+
     // Envia o lancamento para o ViewModel, que grava no backend.
     final sucesso = await context.read<BebidaViewModel>().lancarBebidaNaConta(
       idReserva: reservaSelecionada!.idReserva,
@@ -117,6 +120,57 @@ class _LancarBebidaViewState extends State<LancarBebidaView> {
       final erro = context.read<BebidaViewModel>().mensagemErro;
       _mostrarMensagem(erro ?? 'Erro ao lançar bebida.');
     }
+  }
+
+  Future<bool> _mostrarConfirmacaoLancamento() async {
+    final reserva = reservaSelecionada;
+    final bebida = bebidaSelecionada;
+
+    if (reserva == null || bebida == null) return false;
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Confirmar lancamento'),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Reserva: ${reserva.descricaoDropdown}'),
+                const SizedBox(height: 10),
+                Text('Item: ${quantidade}x ${bebida.nomeProduto}'),
+                Text('Valor unitario: R\$ ${bebida.preco.toStringAsFixed(2)}'),
+                const Divider(height: 24),
+                Text(
+                  'Total: R\$ ${total.toStringAsFixed(2)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                const Text('Deseja lancar este consumo na conta do cliente?'),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: CoresApp.verdeEscuro,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Confirmar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return confirmar == true;
   }
 
   void _cancelarLancamento() {

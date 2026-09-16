@@ -1,4 +1,5 @@
 import 'package:bravo_restaurante/models/conta_consumo.dart';
+import 'package:bravo_restaurante/models/lavanderia.dart';
 import 'package:bravo_restaurante/models/reserva.dart';
 import 'package:bravo_restaurante/models/resumo_fechamento_conta.dart';
 import 'package:bravo_restaurante/services/django_api_client.dart';
@@ -18,6 +19,7 @@ class ContaConsumoService {
       contaMap,
       pedidos: _mapearPedidos(vendas),
       bebidas: _mapearBebidas(vendas),
+      lavanderias: _mapearLavanderias(contaMap),
     );
   }
 
@@ -30,6 +32,7 @@ class ContaConsumoService {
     return ResumoFechamentoConta(
       pedidos: _mapearPedidosResumo(vendas),
       bebidas: _mapearBebidasResumo(vendas),
+      lavanderias: _mapearLavanderias(contaMap),
       totalConta: (contaMap['total_acumulado'] as num?)?.toDouble() ?? 0.0,
     );
   }
@@ -51,6 +54,15 @@ class ContaConsumoService {
     return vendas
         .map((venda) => Map<String, dynamic>.from(venda as Map))
         .where((venda) => venda['status_venda'] != 'Cancelada')
+        .toList();
+  }
+
+  List<OrdemLavanderia> _mapearLavanderias(Map<String, dynamic> contaMap) {
+    final ordens = contaMap['ordens_lavanderia'] as List<dynamic>? ?? [];
+    return ordens
+        .map((ordem) => Map<String, dynamic>.from(ordem as Map))
+        .where((ordem) => ordem['status_ordem'] != 'Cancelado')
+        .map((ordem) => OrdemLavanderia.fromMap(ordem))
         .toList();
   }
 

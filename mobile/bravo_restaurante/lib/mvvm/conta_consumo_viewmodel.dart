@@ -3,6 +3,7 @@ import 'package:bravo_restaurante/models/reserva.dart';
 import 'package:bravo_restaurante/models/resumo_fechamento_conta.dart';
 import 'package:bravo_restaurante/services/conta_consumo_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 class ContaConsumoViewModel extends ChangeNotifier {
   // Service responsavel por consultar conta, pedidos e bebidas da reserva.
@@ -18,12 +19,30 @@ class ContaConsumoViewModel extends ChangeNotifier {
   String? mensagemErroFechamento;
   ResumoFechamentoConta? resumoFechamento;
 
+  void _notificarComSeguranca() {
+    final schedulerPhase = SchedulerBinding.instance.schedulerPhase;
+    final podeNotificarAgora =
+        schedulerPhase == SchedulerPhase.idle ||
+        schedulerPhase == SchedulerPhase.postFrameCallbacks;
+
+    if (podeNotificarAgora) {
+      notifyListeners();
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (hasListeners) {
+        notifyListeners();
+      }
+    });
+  }
+
   Future<void> carregarContaDaReserva(Reserva reserva) async {
     // Limpa dados antigos antes de carregar a conta da nova reserva selecionada.
     isLoading = true;
     mensagemErro = null;
     conta = null;
-    notifyListeners();
+    _notificarComSeguranca();
 
     try {
       conta = await _contaConsumoService.carregarContaDaReserva(reserva);
@@ -31,32 +50,34 @@ class ContaConsumoViewModel extends ChangeNotifier {
       if (conta == null) {
         mensagemErro = 'Nenhuma conta de consumo encontrada para esta reserva.';
         isLoading = false;
-        notifyListeners();
+        _notificarComSeguranca();
         return;
       }
 
       isLoading = false;
-      notifyListeners();
+      _notificarComSeguranca();
     } catch (e) {
       mensagemErro = 'Erro ao carregar conta de consumo: $e';
       debugPrint(mensagemErro);
       isLoading = false;
-      notifyListeners();
+      _notificarComSeguranca();
     }
   }
 
-  void limpar() {
+  void limpar({bool notificar = true}) {
     // Remove a conta atual quando nenhuma reserva esta selecionada.
     conta = null;
     mensagemErro = null;
-    notifyListeners();
+    if (notificar) {
+      _notificarComSeguranca();
+    }
   }
 
   Future<void> carregarResumoFechamento(Reserva reserva) async {
     carregandoResumoFechamento = true;
     mensagemErroFechamento = null;
     resumoFechamento = null;
-    notifyListeners();
+    _notificarComSeguranca();
 
     try {
       resumoFechamento = await _contaConsumoService.carregarResumoFechamento(
@@ -64,17 +85,17 @@ class ContaConsumoViewModel extends ChangeNotifier {
       );
 
       carregandoResumoFechamento = false;
-      notifyListeners();
+      _notificarComSeguranca();
     } catch (e) {
       mensagemErroFechamento = 'Erro ao carregar conta: $e';
       carregandoResumoFechamento = false;
-      notifyListeners();
+      _notificarComSeguranca();
     }
   }
 
   Future<bool> fecharContaDaReserva(Reserva reserva) async {
     mensagemErroFechamento = null;
-    notifyListeners();
+    _notificarComSeguranca();
 
     try {
       await _contaConsumoService.fecharContaDaReserva(
@@ -86,7 +107,7 @@ class ContaConsumoViewModel extends ChangeNotifier {
       return true;
     } catch (e) {
       mensagemErroFechamento = 'Erro ao fechar conta: $e';
-      notifyListeners();
+      _notificarComSeguranca();
       return false;
     }
   }
@@ -95,6 +116,6 @@ class ContaConsumoViewModel extends ChangeNotifier {
     resumoFechamento = null;
     mensagemErroFechamento = null;
     carregandoResumoFechamento = false;
-    notifyListeners();
+    _notificarComSeguranca();
   }
 }

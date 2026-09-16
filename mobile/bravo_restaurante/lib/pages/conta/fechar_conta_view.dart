@@ -1,3 +1,4 @@
+import 'package:bravo_restaurante/models/lavanderia.dart';
 import 'package:bravo_restaurante/models/reserva.dart';
 import 'package:bravo_restaurante/models/resumo_fechamento_conta.dart';
 import 'package:bravo_restaurante/mvvm/conta_consumo_viewmodel.dart';
@@ -210,6 +211,37 @@ class _FecharContaViewState extends State<FecharContaView> {
                 ],
               );
             }),
+          pw.SizedBox(height: 16),
+          pw.Text(
+            'Lavanderia',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
+          if (resumo.lavanderias.isEmpty)
+            pw.Text('Nenhuma lavanderia lancada.')
+          else
+            ...resumo.lavanderias.map((ordem) {
+              final dataPedido = _formatarDataPedido(ordem.dtRecebimento);
+
+              return pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.SizedBox(height: 8),
+                  pw.Text(
+                    'Lavanderia - ${ordem.statusOrdem}',
+                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                  ),
+                  pw.Text('Data: $dataPedido'),
+                  ...ordem.itens.map((item) {
+                    return pw.Text(
+                      '${item.quantidade}x ${item.nomeServico} - R\$ ${item.subtotal.toStringAsFixed(2)}',
+                    );
+                  }),
+                  pw.Text(
+                    'Total do lancamento: R\$ ${ordem.totalOrdem.toStringAsFixed(2)}',
+                  ),
+                ],
+              );
+            }),
           pw.Divider(),
           pw.Align(
             alignment: pw.Alignment.centerRight,
@@ -375,6 +407,13 @@ class _FecharContaViewState extends State<FecharContaView> {
         else
           ...resumo.bebidas.map((bebida) => _buildBebidaCard(bebida)),
         const SizedBox(height: 14),
+        const Text('Lavanderia', style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 6),
+        if (resumo.lavanderias.isEmpty)
+          const Text('Nenhuma lavanderia lancada.')
+        else
+          ...resumo.lavanderias.map((ordem) => _buildLavanderiaCard(ordem)),
+        const SizedBox(height: 14),
         TotalCard(
           titulo: 'Total Acumulado na Conta do Cliente',
           valor: resumo.totalConta,
@@ -408,6 +447,19 @@ class _FecharContaViewState extends State<FecharContaView> {
         '${bebida.quantidade}x ${bebida.nomeProduto} - R\$ ${bebida.subtotal.toStringAsFixed(2)}',
       ],
       total: bebida.subtotal,
+    );
+  }
+
+  Widget _buildLavanderiaCard(OrdemLavanderia ordem) {
+    final dataPedido = _formatarDataPedido(ordem.dtRecebimento);
+
+    return ConsumoCard(
+      titulo: 'Lavanderia - ${ordem.statusOrdem}',
+      data: dataPedido,
+      itens: ordem.itens.map((item) {
+        return '${item.quantidade}x ${item.nomeServico} - R\$ ${item.subtotal.toStringAsFixed(2)}';
+      }).toList(),
+      total: ordem.totalOrdem,
     );
   }
 

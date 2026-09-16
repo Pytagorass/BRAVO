@@ -1,11 +1,15 @@
+import 'package:bravo_restaurante/models/lavanderia.dart';
+
 class ResumoFechamentoConta {
   final List<PedidoResumoConta> pedidos;
   final List<BebidaResumoConta> bebidas;
+  final List<OrdemLavanderia> lavanderias;
   final double totalConta;
 
   const ResumoFechamentoConta({
     required this.pedidos,
     required this.bebidas,
+    required this.lavanderias,
     required this.totalConta,
   });
 }

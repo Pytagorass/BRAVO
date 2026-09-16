@@ -2,6 +2,7 @@ import 'package:bravo_restaurante/mvvm/usuario_viewmodel.dart';
 import 'package:bravo_restaurante/pages/bebida/lancar_bebida_view.dart';
 import 'package:bravo_restaurante/pages/conta/conta_hospede_view.dart';
 import 'package:bravo_restaurante/pages/conta/fechar_conta_view.dart';
+import 'package:bravo_restaurante/pages/lavanderia/lavanderia_view.dart';
 import 'package:bravo_restaurante/pages/login/login_view.dart';
 import 'package:bravo_restaurante/pages/pedido/registrar_pedido_view.dart';
 import 'package:bravo_restaurante/widgets/cores_app.dart';
@@ -33,6 +34,13 @@ class _HomeViewState extends State<HomeView> {
         builder: (_) =>
             const RegistrarPedidoView(origem: 'Lojinha', titulo: 'Lojinha'),
       ),
+    );
+  }
+
+  void _abrirLavanderia() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const LavanderiaView()),
     );
   }
 
@@ -90,6 +98,7 @@ class _HomeViewState extends State<HomeView> {
             _AcessosRapidosCard(
               abrirLancarBebida: _abrirLancarBebida,
               abrirLojinha: _abrirLojinha,
+              abrirLavanderia: _abrirLavanderia,
               abrirContaHospede: _abrirContaHospede,
               abrirFecharConta: _abrirFecharConta,
             ),
@@ -98,6 +107,7 @@ class _HomeViewState extends State<HomeView> {
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
+        type: BottomNavigationBarType.fixed,
         selectedItemColor: CoresApp.verdeEscuro,
         unselectedItemColor: CoresApp.cinzaEscuro.withValues(alpha: 0.6),
         iconSize: 26,
@@ -110,8 +120,10 @@ class _HomeViewState extends State<HomeView> {
           if (index == 1) {
             _abrirLancarBebida();
           } else if (index == 2) {
-            _abrirContaHospede();
+            _abrirLavanderia();
           } else if (index == 3) {
+            _abrirContaHospede();
+          } else if (index == 4) {
             _abrirFecharConta();
           }
         },
@@ -123,6 +135,10 @@ class _HomeViewState extends State<HomeView> {
           BottomNavigationBarItem(
             icon: Icon(Icons.local_bar),
             label: 'Bebidas',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.local_laundry_service),
+            label: 'Lavanderia',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.account_balance_wallet),
@@ -167,6 +183,11 @@ class _HomeViewState extends State<HomeView> {
             onTap: () => _fecharDrawerEAbrir(_abrirLojinha),
           ),
           ListTile(
+            leading: const Icon(Icons.local_laundry_service),
+            title: const Text('Lavanderia'),
+            onTap: () => _fecharDrawerEAbrir(_abrirLavanderia),
+          ),
+          ListTile(
             leading: const Icon(Icons.account_balance_wallet),
             title: const Text('Conta do Hospede'),
             onTap: () => _fecharDrawerEAbrir(_abrirContaHospede),
@@ -205,7 +226,7 @@ class _ResumoCard extends StatelessWidget {
             SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Controle de bebidas e lojinha do barco-hotel',
+                'Controle de bebidas, lojinha e lavanderia do barco-hotel',
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
                   color: CoresApp.verdeEscuro,
@@ -222,12 +243,14 @@ class _ResumoCard extends StatelessWidget {
 class _AcessosRapidosCard extends StatelessWidget {
   final VoidCallback abrirLancarBebida;
   final VoidCallback abrirLojinha;
+  final VoidCallback abrirLavanderia;
   final VoidCallback abrirContaHospede;
   final VoidCallback abrirFecharConta;
 
   const _AcessosRapidosCard({
     required this.abrirLancarBebida,
     required this.abrirLojinha,
+    required this.abrirLavanderia,
     required this.abrirContaHospede,
     required this.abrirFecharConta,
   });
@@ -278,20 +301,29 @@ class _AcessosRapidosCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: _QuickButton(
-                    label: 'Conta',
-                    icon: Icons.account_balance_wallet,
-                    onTap: abrirContaHospede,
+                    label: 'Lavanderia',
+                    icon: Icons.local_laundry_service,
+                    onTap: abrirLavanderia,
                   ),
                 ),
                 SizedBox(width: espacamento),
                 Expanded(
                   child: _QuickButton(
-                    label: 'Fechar Conta',
-                    icon: Icons.attach_money,
-                    onTap: abrirFecharConta,
+                    label: 'Conta',
+                    icon: Icons.account_balance_wallet,
+                    onTap: abrirContaHospede,
                   ),
                 ),
               ],
+            ),
+            SizedBox(height: espacamento),
+            SizedBox(
+              width: double.infinity,
+              child: _QuickButton(
+                label: 'Fechar Conta',
+                icon: Icons.attach_money,
+                onTap: abrirFecharConta,
+              ),
             ),
           ],
         ),

@@ -1,4 +1,5 @@
 import 'package:bravo_restaurante/models/conta_consumo.dart';
+import 'package:bravo_restaurante/models/lavanderia.dart';
 import 'package:bravo_restaurante/models/reserva.dart';
 import 'package:bravo_restaurante/mvvm/conta_consumo_viewmodel.dart';
 import 'package:bravo_restaurante/mvvm/reserva_viewmodel.dart';
@@ -51,7 +52,7 @@ class _ContaHospedeViewState extends State<ContaHospedeView> {
   @override
   void dispose() {
     // Garante que a próxima abertura da tela não herde a conta selecionada.
-    _contaVM.limpar();
+    _contaVM.limpar(notificar: false);
     super.dispose();
   }
 
@@ -99,7 +100,7 @@ class _ContaHospedeViewState extends State<ContaHospedeView> {
                       // Aviso inicial explicando o objetivo desta consulta.
                       const AlertaInformacoesPagina(
                         message:
-                            'Consulte lojinha, bebidas e total acumulado de uma reserva aberta.',
+                            'Consulte lojinha, bebidas, lavanderia e total acumulado de uma reserva aberta.',
                       ),
 
                       const SizedBox(height: 16),
@@ -150,7 +151,7 @@ class _ContaDetalhes extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Mostra o resumo financeiro e as duas origens de consumo: lojinha e bebidas.
+    // Mostra o resumo financeiro e as origens de consumo da conta.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -179,6 +180,16 @@ class _ContaDetalhes extends StatelessWidget {
           const _MensagemCard(mensagem: 'Nenhuma bebida lancada.')
         else
           ...conta.bebidas.map((bebida) => _BebidaCard(bebida: bebida)),
+        const SizedBox(height: 18),
+        const Text(
+          'Lavanderia',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const SizedBox(height: 8),
+        if (conta.lavanderias.isEmpty)
+          const _MensagemCard(mensagem: 'Nenhuma lavanderia lancada.')
+        else
+          ...conta.lavanderias.map((ordem) => _LavanderiaCard(ordem: ordem)),
       ],
     );
   }
@@ -224,6 +235,27 @@ class _BebidaCard extends StatelessWidget {
         '${bebida.quantidade}x ${bebida.nomeProduto} - R\$ ${bebida.subtotal.toStringAsFixed(2)}',
       ],
       total: bebida.subtotal,
+    );
+  }
+}
+
+class _LavanderiaCard extends StatelessWidget {
+  final OrdemLavanderia ordem;
+
+  const _LavanderiaCard({required this.ordem});
+
+  @override
+  Widget build(BuildContext context) {
+    final dataPedido = _formatarDataConta(ordem.dtRecebimento);
+
+    return ConsumoCard(
+      titulo: 'Lavanderia - ${ordem.statusOrdem}',
+      data: dataPedido,
+      observacao: ordem.observacao,
+      itens: ordem.itens.map((item) {
+        return '${item.quantidade}x ${item.nomeServico} - R\$ ${item.subtotal.toStringAsFixed(2)}';
+      }).toList(),
+      total: ordem.totalOrdem,
     );
   }
 }

@@ -4,6 +4,7 @@ import 'package:bravo_restaurante/mvvm/pedido_viewmodel.dart';
 import 'package:bravo_restaurante/mvvm/produto_viewmodel.dart';
 import 'package:bravo_restaurante/mvvm/reserva_viewmodel.dart';
 import 'package:bravo_restaurante/mvvm/usuario_viewmodel.dart';
+import 'package:bravo_restaurante/mvvm/lavanderia_viewmodel.dart';
 import 'package:bravo_restaurante/pages/login/login_view.dart';
 import 'package:bravo_restaurante/widgets/cores_app.dart';
 import 'package:flutter/material.dart';
@@ -29,6 +30,8 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => ContaConsumoViewModel()),
         // Registra bebidas diretamente na ContaConsumo.
         ChangeNotifierProvider(create: (_) => BebidaViewModel()),
+        // Controla catalogo e ordens de lavanderia por peca.
+        ChangeNotifierProvider(create: (_) => LavanderiaViewModel()),
       ],
       child: const BravoApp(),
     ),

@@ -1871,14 +1871,20 @@ def get_indicadores_gestao(request):
             cursor.execute(sql_pagamentos, [data_inicio, data_fim])
             pagamentos_pendentes = dictfetchall(cursor)[0]
 
-            # Indicadores do modulo de consumo (bebidas e lojinha)
-            # para o painel executivo. Filtra pelas vendas confirmadas no ano.
+            # Indicadores do modulo de consumo (bebidas, lojinha e lavanderia)
+            # para o painel executivo. Filtra os lancamentos confirmados no ano.
             sql_consumo_resumo = """
-                WITH vendas_ano AS (
-                    SELECT id_venda, total_venda
+                WITH lancamentos_ano AS (
+                    SELECT id_venda AS id_lancamento, total_venda AS total_lancamento
                     FROM venda_consumo
                     WHERE
                         status_venda = 'Confirmada'
+                        AND dt_criacao::date BETWEEN %s AND %s
+                    UNION ALL
+                    SELECT id_ordem AS id_lancamento, total_ordem AS total_lancamento
+                    FROM ordem_lavanderia
+                    WHERE
+                        status_ordem <> 'Cancelado'
                         AND dt_criacao::date BETWEEN %s AND %s
                 ),
                 contas_abertas AS (
@@ -1889,58 +1895,102 @@ def get_indicadores_gestao(request):
                     WHERE status_conta = 'Aberta'
                 )
                 SELECT
-                    COALESCE(SUM(v.total_venda), 0.00) AS faturamento_total,
-                    COALESCE(COUNT(v.id_venda), 0) AS total_vendas,
+                    COALESCE(SUM(l.total_lancamento), 0.00) AS faturamento_total,
+                    COALESCE(COUNT(l.id_lancamento), 0) AS total_vendas,
                     CASE
-                        WHEN COUNT(v.id_venda) = 0 THEN 0.00
-                        ELSE COALESCE(SUM(v.total_venda), 0.00) / COUNT(v.id_venda)
+                        WHEN COUNT(l.id_lancamento) = 0 THEN 0.00
+                        ELSE COALESCE(SUM(l.total_lancamento), 0.00) / COUNT(l.id_lancamento)
                     END AS ticket_medio,
                     ca.contas_abertas,
                     ca.total_contas_abertas
                 FROM contas_abertas ca
-                LEFT JOIN vendas_ano v ON TRUE
+                LEFT JOIN lancamentos_ano l ON TRUE
                 GROUP BY ca.contas_abertas, ca.total_contas_abertas;
             """
-            cursor.execute(sql_consumo_resumo, [data_inicio, data_fim])
+            cursor.execute(sql_consumo_resumo, [data_inicio, data_fim, data_inicio, data_fim])
             consumo_resumo = dictfetchall(cursor)[0]
 
             sql_consumo_origem = """
                 SELECT
-                    vc.origem,
-                    COALESCE(COUNT(DISTINCT vc.id_venda), 0) AS total_vendas,
-                    COALESCE(SUM(vc.total_venda), 0.00) AS faturamento,
-                    COALESCE(SUM(ivc.quantidade), 0) AS quantidade_itens
-                FROM venda_consumo vc
-                LEFT JOIN item_venda_consumo ivc ON ivc.fk_venda = vc.id_venda
-                WHERE
-                    vc.status_venda = 'Confirmada'
-                    AND vc.dt_criacao::date BETWEEN %s AND %s
-                GROUP BY vc.origem
+                    origem,
+                    COALESCE(COUNT(DISTINCT id_lancamento), 0) AS total_vendas,
+                    COALESCE(SUM(total_lancamento), 0.00) AS faturamento,
+                    COALESCE(SUM(quantidade_itens), 0) AS quantidade_itens
+                FROM (
+                    SELECT
+                        vc.origem::text AS origem,
+                        vc.id_venda AS id_lancamento,
+                        vc.total_venda AS total_lancamento,
+                        COALESCE(SUM(ivc.quantidade), 0) AS quantidade_itens
+                    FROM venda_consumo vc
+                    LEFT JOIN item_venda_consumo ivc ON ivc.fk_venda = vc.id_venda
+                    WHERE
+                        vc.status_venda = 'Confirmada'
+                        AND vc.dt_criacao::date BETWEEN %s AND %s
+                    GROUP BY vc.origem, vc.id_venda, vc.total_venda
+                    UNION ALL
+                    SELECT
+                        'Lavanderia' AS origem,
+                        ol.id_ordem AS id_lancamento,
+                        ol.total_ordem AS total_lancamento,
+                        COALESCE(SUM(iol.quantidade), 0) AS quantidade_itens
+                    FROM ordem_lavanderia ol
+                    LEFT JOIN item_ordem_lavanderia iol ON iol.fk_ordem = ol.id_ordem
+                    WHERE
+                        ol.status_ordem <> 'Cancelado'
+                        AND ol.dt_criacao::date BETWEEN %s AND %s
+                    GROUP BY ol.id_ordem, ol.total_ordem
+                ) consumo
+                GROUP BY origem
                 ORDER BY faturamento DESC;
             """
-            cursor.execute(sql_consumo_origem, [data_inicio, data_fim])
+            cursor.execute(sql_consumo_origem, [data_inicio, data_fim, data_inicio, data_fim])
             consumo_por_origem = dictfetchall(cursor)
 
             sql_produtos_mais_vendidos = """
                 SELECT
-                    p.id_produto,
-                    p.nome_produto,
-                    cp.nome_categoria,
-                    cp.tipo_categoria AS origem,
-                    COALESCE(SUM(ivc.quantidade), 0) AS quantidade_total,
-                    COALESCE(SUM(ivc.subtotal), 0.00) AS faturamento_total
-                FROM item_venda_consumo ivc
-                JOIN venda_consumo vc ON vc.id_venda = ivc.fk_venda
-                JOIN produto p ON p.id_produto = ivc.fk_produto
-                JOIN categoria_produto cp ON cp.id_categoria = p.fk_categoria
-                WHERE
-                    vc.status_venda = 'Confirmada'
-                    AND vc.dt_criacao::date BETWEEN %s AND %s
-                GROUP BY p.id_produto, p.nome_produto, cp.nome_categoria, cp.tipo_categoria
+                    id_produto,
+                    nome_produto,
+                    nome_categoria,
+                    origem,
+                    COALESCE(SUM(quantidade), 0) AS quantidade_total,
+                    COALESCE(SUM(subtotal), 0.00) AS faturamento_total
+                FROM (
+                    SELECT
+                        p.id_produto,
+                        p.nome_produto,
+                        cp.nome_categoria,
+                        cp.tipo_categoria::text AS origem,
+                        ivc.quantidade,
+                        ivc.subtotal
+                    FROM item_venda_consumo ivc
+                    JOIN venda_consumo vc ON vc.id_venda = ivc.fk_venda
+                    JOIN produto p ON p.id_produto = ivc.fk_produto
+                    JOIN categoria_produto cp ON cp.id_categoria = p.fk_categoria
+                    WHERE
+                        vc.status_venda = 'Confirmada'
+                        AND vc.dt_criacao::date BETWEEN %s AND %s
+                    UNION ALL
+                    SELECT
+                        -sl.id_servico AS id_produto,
+                        sl.nome_servico AS nome_produto,
+                        cl.nome_categoria,
+                        'Lavanderia' AS origem,
+                        iol.quantidade,
+                        iol.subtotal
+                    FROM item_ordem_lavanderia iol
+                    JOIN ordem_lavanderia ol ON ol.id_ordem = iol.fk_ordem
+                    JOIN servico_lavanderia sl ON sl.id_servico = iol.fk_servico
+                    JOIN categoria_lavanderia cl ON cl.id_categoria = sl.fk_categoria
+                    WHERE
+                        ol.status_ordem <> 'Cancelado'
+                        AND ol.dt_criacao::date BETWEEN %s AND %s
+                ) itens_consumo
+                GROUP BY id_produto, nome_produto, nome_categoria, origem
                 ORDER BY quantidade_total DESC, faturamento_total DESC
                 LIMIT 8;
             """
-            cursor.execute(sql_produtos_mais_vendidos, [data_inicio, data_fim])
+            cursor.execute(sql_produtos_mais_vendidos, [data_inicio, data_fim, data_inicio, data_fim])
             produtos_mais_vendidos = dictfetchall(cursor)
 
             sql_contas_consumo_abertas = """
@@ -2046,6 +2096,7 @@ def get_reservas_pendentes(request):
 TIPOS_CONSUMO_VALIDOS = ('Restaurante', 'Lojinha', 'Outros')
 STATUS_ATIVO_VALIDOS = ('Ativo', 'Inativo')
 CATEGORIA_BEBIDAS_CONSUMO = 'Bebidas'
+STATUS_LAVANDERIA_VALIDOS = ('Recebido', 'Em Lavagem', 'Pronto', 'Entregue', 'Cancelado')
 
 
 def _is_categoria_bebidas(nome_categoria):
@@ -2590,6 +2641,514 @@ def _buscar_ou_criar_conta_consumo(cursor, reserva_id):
     return conta, None
 
 
+def _buscar_ordens_lavanderia_por_conta(cursor, conta_id):
+    cursor.execute(
+        """
+        SELECT
+            ol.id_ordem,
+            ol.fk_conta,
+            ol.fk_reserva,
+            ol.fk_usuario,
+            ol.status_ordem,
+            ol.observacao,
+            ol.total_ordem::float AS total_ordem,
+            ol.dt_recebimento,
+            ol.dt_previsao_entrega,
+            ol.dt_entrega,
+            ol.dt_cancelamento,
+            ol.dt_criacao
+        FROM ordem_lavanderia ol
+        WHERE ol.fk_conta = %s
+        ORDER BY ol.dt_criacao DESC;
+        """,
+        [conta_id]
+    )
+    ordens = dictfetchall(cursor)
+
+    cursor.execute(
+        """
+        SELECT
+            iol.id_item,
+            iol.fk_ordem,
+            iol.fk_servico,
+            cl.id_categoria,
+            cl.nome_categoria,
+            sl.nome_servico,
+            iol.quantidade,
+            iol.valor_unitario::float AS valor_unitario,
+            iol.subtotal::float AS subtotal,
+            iol.observacao,
+            iol.dt_criacao
+        FROM item_ordem_lavanderia iol
+        JOIN servico_lavanderia sl ON sl.id_servico = iol.fk_servico
+        JOIN categoria_lavanderia cl ON cl.id_categoria = sl.fk_categoria
+        JOIN ordem_lavanderia ol ON ol.id_ordem = iol.fk_ordem
+        WHERE ol.fk_conta = %s
+        ORDER BY iol.dt_criacao ASC;
+        """,
+        [conta_id]
+    )
+    itens = dictfetchall(cursor)
+
+    itens_por_ordem = {}
+    for item in itens:
+        itens_por_ordem.setdefault(item['fk_ordem'], []).append(item)
+
+    for ordem in ordens:
+        ordem['itens'] = itens_por_ordem.get(ordem['id_ordem'], [])
+
+    return ordens
+
+
+@csrf_exempt
+@token_required
+@require_http_methods(["GET"])
+def consumo_lavanderia_categorias_view(request):
+    ativo = request.GET.get('ativo') or 'Ativo'
+    filtros = []
+    params = []
+
+    if ativo != 'Todos':
+        if ativo not in STATUS_ATIVO_VALIDOS:
+            return error_response('Status da categoria invalido.', 'VALIDATION_ERROR', 400)
+        filtros.append('ativo = %s')
+        params.append(ativo)
+
+    where_clause = f"WHERE {' AND '.join(filtros)}" if filtros else ''
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT
+                    id_categoria,
+                    nome_categoria,
+                    descricao,
+                    ativo,
+                    ordem_exibicao,
+                    dt_criacao
+                FROM categoria_lavanderia
+                {where_clause}
+                ORDER BY ordem_exibicao, nome_categoria;
+                """,
+                params
+            )
+            categorias = dictfetchall(cursor)
+
+        return success_response(categorias)
+    except Exception as e:
+        return error_response(str(e), 'SERVER_ERROR', 500)
+
+
+@csrf_exempt
+@token_required
+@require_http_methods(["GET"])
+def consumo_lavanderia_servicos_view(request):
+    ativo = request.GET.get('ativo') or 'Ativo'
+    categoria_id = request.GET.get('fk_categoria') or request.GET.get('id_categoria')
+    filtros = []
+    params = []
+
+    if ativo != 'Todos':
+        if ativo not in STATUS_ATIVO_VALIDOS:
+            return error_response('Status do servico invalido.', 'VALIDATION_ERROR', 400)
+        filtros.append('sl.ativo = %s')
+        params.append(ativo)
+
+    if categoria_id:
+        categoria_id, error = _parse_int(categoria_id, 'Categoria', 1)
+        if error:
+            return error
+        filtros.append('sl.fk_categoria = %s')
+        params.append(categoria_id)
+
+    where_clause = f"WHERE {' AND '.join(filtros)}" if filtros else ''
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT
+                    sl.id_servico,
+                    sl.fk_categoria,
+                    cl.nome_categoria,
+                    sl.nome_servico,
+                    sl.descricao,
+                    sl.preco_unitario::float AS preco_unitario,
+                    sl.prazo_horas,
+                    sl.ativo,
+                    sl.dt_criacao,
+                    sl.dt_atualizacao
+                FROM servico_lavanderia sl
+                JOIN categoria_lavanderia cl ON cl.id_categoria = sl.fk_categoria
+                {where_clause}
+                ORDER BY cl.ordem_exibicao, cl.nome_categoria, sl.nome_servico;
+                """,
+                params
+            )
+            servicos = dictfetchall(cursor)
+
+        return success_response(servicos)
+    except Exception as e:
+        return error_response(str(e), 'SERVER_ERROR', 500)
+
+
+@csrf_exempt
+@token_required
+@transaction.atomic
+@require_http_methods(["GET", "POST"])
+def consumo_lavanderia_ordens_view(request):
+    if request.method == 'GET':
+        status = request.GET.get('status')
+        conta_id = request.GET.get('fk_conta') or request.GET.get('id_conta')
+        reserva_id = request.GET.get('fk_reserva') or request.GET.get('id_reserva')
+        filtros = []
+        params = []
+
+        if status:
+            if status not in STATUS_LAVANDERIA_VALIDOS:
+                return error_response('Status de lavanderia invalido.', 'VALIDATION_ERROR', 400)
+            filtros.append('ol.status_ordem = %s')
+            params.append(status)
+
+        if conta_id:
+            conta_id, error = _parse_int(conta_id, 'Conta', 1)
+            if error:
+                return error
+            filtros.append('ol.fk_conta = %s')
+            params.append(conta_id)
+
+        if reserva_id:
+            reserva_id, error = _parse_int(reserva_id, 'Reserva', 1)
+            if error:
+                return error
+            filtros.append('ol.fk_reserva = %s')
+            params.append(reserva_id)
+
+        where_clause = f"WHERE {' AND '.join(filtros)}" if filtros else ''
+
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    SELECT DISTINCT ol.fk_conta
+                    FROM ordem_lavanderia ol
+                    {where_clause}
+                    ORDER BY ol.fk_conta;
+                    """,
+                    params
+                )
+                contas = [row[0] for row in cursor.fetchall()]
+
+                ordens = []
+                for conta in contas:
+                    ordens.extend(_buscar_ordens_lavanderia_por_conta(cursor, conta))
+
+            if status:
+                ordens = [ordem for ordem in ordens if ordem['status_ordem'] == status]
+            if reserva_id:
+                ordens = [ordem for ordem in ordens if ordem['fk_reserva'] == reserva_id]
+
+            return success_response(ordens)
+        except Exception as e:
+            return error_response(str(e), 'SERVER_ERROR', 500)
+
+    data, parse_error = _parse_json_body(request)
+    if parse_error:
+        return parse_error
+
+    reserva_id = data.get('fk_reserva') or data.get('id_reserva')
+    reserva_id, error = _parse_int(reserva_id, 'Reserva', 1)
+    if error:
+        return error
+
+    itens = data.get('itens') or []
+    if not isinstance(itens, list) or not itens:
+        return error_response('Informe ao menos uma peca para a lavanderia.', 'VALIDATION_ERROR', 400)
+
+    usuario_id = request.user_token_payload.get('id_usuario')
+    observacao = data.get('observacao')
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id_reserva, status_reserva
+                FROM reserva
+                WHERE id_reserva = %s
+                FOR UPDATE;
+                """,
+                [reserva_id]
+            )
+            reserva = dictfetchall(cursor)
+            if not reserva:
+                return error_response('Reserva nao encontrada.', 'NOT_FOUND', 404)
+            if reserva[0]['status_reserva'] != 'Ativa':
+                return error_response('Apenas reservas ativas podem receber lavanderia.', 'RESERVA_INATIVA', 409)
+
+            conta, conta_error = _buscar_ou_criar_conta_consumo(cursor, reserva_id)
+            if conta_error:
+                return conta_error
+
+            itens_processados = []
+            total_ordem = Decimal('0.00')
+            maior_prazo = 24
+
+            for item in itens:
+                servico_id = item.get('fk_servico') or item.get('id_servico')
+                servico_id, error = _parse_int(servico_id, 'Servico', 1)
+                if error:
+                    return error
+
+                quantidade, error = _parse_int(item.get('quantidade'), 'Quantidade', 1)
+                if error:
+                    return error
+
+                cursor.execute(
+                    """
+                    SELECT
+                        sl.id_servico,
+                        sl.nome_servico,
+                        sl.preco_unitario,
+                        sl.prazo_horas,
+                        cl.nome_categoria
+                    FROM servico_lavanderia sl
+                    JOIN categoria_lavanderia cl ON cl.id_categoria = sl.fk_categoria
+                    WHERE sl.id_servico = %s
+                      AND sl.ativo = 'Ativo'
+                      AND cl.ativo = 'Ativo';
+                    """,
+                    [servico_id]
+                )
+                servico_result = dictfetchall(cursor)
+                if not servico_result:
+                    return error_response('Servico de lavanderia nao encontrado ou inativo.', 'SERVICO_INATIVO', 404)
+
+                servico = servico_result[0]
+                valor_unitario = servico['preco_unitario']
+                subtotal = valor_unitario * quantidade
+                total_ordem += subtotal
+                maior_prazo = max(maior_prazo, int(servico['prazo_horas'] or 24))
+
+                itens_processados.append({
+                    'id_servico': servico_id,
+                    'nome_servico': servico['nome_servico'],
+                    'nome_categoria': servico['nome_categoria'],
+                    'quantidade': quantidade,
+                    'valor_unitario': valor_unitario,
+                    'subtotal': subtotal,
+                    'observacao': item.get('observacao'),
+                })
+
+            cursor.execute(
+                """
+                INSERT INTO ordem_lavanderia (
+                    fk_conta,
+                    fk_reserva,
+                    fk_usuario,
+                    observacao,
+                    total_ordem,
+                    dt_previsao_entrega
+                )
+                VALUES (%s, %s, %s, %s, %s, NOW() + (%s * INTERVAL '1 hour'))
+                RETURNING
+                    id_ordem,
+                    fk_conta,
+                    fk_reserva,
+                    fk_usuario,
+                    status_ordem,
+                    observacao,
+                    total_ordem::float AS total_ordem,
+                    dt_recebimento,
+                    dt_previsao_entrega,
+                    dt_entrega,
+                    dt_cancelamento,
+                    dt_criacao;
+                """,
+                [
+                    conta['id_conta'],
+                    reserva_id,
+                    usuario_id,
+                    observacao.strip() if isinstance(observacao, str) and observacao.strip() else None,
+                    total_ordem,
+                    maior_prazo,
+                ]
+            )
+            ordem = dictfetchall(cursor)[0]
+
+            itens_response = []
+            for item in itens_processados:
+                cursor.execute(
+                    """
+                    INSERT INTO item_ordem_lavanderia (
+                        fk_ordem,
+                        fk_servico,
+                        quantidade,
+                        valor_unitario,
+                        subtotal,
+                        observacao
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    RETURNING
+                        id_item,
+                        fk_ordem,
+                        fk_servico,
+                        quantidade,
+                        valor_unitario::float AS valor_unitario,
+                        subtotal::float AS subtotal,
+                        observacao,
+                        dt_criacao;
+                    """,
+                    [
+                        ordem['id_ordem'],
+                        item['id_servico'],
+                        item['quantidade'],
+                        item['valor_unitario'],
+                        item['subtotal'],
+                        item['observacao'],
+                    ]
+                )
+                item_salvo = dictfetchall(cursor)[0]
+                item_salvo['nome_servico'] = item['nome_servico']
+                item_salvo['nome_categoria'] = item['nome_categoria']
+                itens_response.append(item_salvo)
+
+            cursor.execute(
+                """
+                INSERT INTO historico_lavanderia_status (
+                    fk_ordem,
+                    status_anterior,
+                    status_novo,
+                    fk_usuario,
+                    observacao
+                )
+                VALUES (%s, NULL, 'Recebido', %s, %s);
+                """,
+                [ordem['id_ordem'], usuario_id, 'Ordem criada pelo app mobile']
+            )
+
+            cursor.execute(
+                """
+                UPDATE conta_consumo
+                SET total_acumulado = total_acumulado + %s
+                WHERE id_conta = %s
+                RETURNING total_acumulado::float AS total_acumulado;
+                """,
+                [total_ordem, conta['id_conta']]
+            )
+            conta_atualizada = dictfetchall(cursor)[0]
+
+        ordem['itens'] = itens_response
+        ordem['total_acumulado_conta'] = conta_atualizada['total_acumulado']
+        return success_response(ordem, 'ORDEM_LAVANDERIA_CREATED', 201)
+    except Exception as e:
+        return error_response(str(e), 'SERVER_ERROR', 500)
+
+
+@csrf_exempt
+@token_required
+@transaction.atomic
+@require_http_methods(["POST"])
+def consumo_lavanderia_ordem_status_view(request, ordem_id):
+    data, parse_error = _parse_json_body(request)
+    if parse_error:
+        return parse_error
+
+    novo_status = data.get('status_ordem') or data.get('status')
+    if novo_status not in STATUS_LAVANDERIA_VALIDOS:
+        return error_response('Status de lavanderia invalido.', 'VALIDATION_ERROR', 400)
+
+    observacao = data.get('observacao')
+    usuario_id = request.user_token_payload.get('id_usuario')
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id_ordem, fk_conta, status_ordem, total_ordem
+                FROM ordem_lavanderia
+                WHERE id_ordem = %s
+                FOR UPDATE;
+                """,
+                [ordem_id]
+            )
+            ordem_result = dictfetchall(cursor)
+            if not ordem_result:
+                return error_response('Ordem de lavanderia nao encontrada.', 'NOT_FOUND', 404)
+
+            ordem_atual = ordem_result[0]
+            status_anterior = ordem_atual['status_ordem']
+
+            if status_anterior == novo_status:
+                return success_response(ordem_atual, 'ORDEM_LAVANDERIA_STATUS_UNCHANGED')
+
+            set_clauses = ['status_ordem = %s']
+            params = [novo_status]
+
+            if novo_status == 'Entregue':
+                set_clauses.append('dt_entrega = COALESCE(dt_entrega, NOW())')
+            if novo_status == 'Cancelado':
+                set_clauses.append('dt_cancelamento = COALESCE(dt_cancelamento, NOW())')
+
+            params.append(ordem_id)
+            cursor.execute(
+                f"""
+                UPDATE ordem_lavanderia
+                SET {', '.join(set_clauses)}
+                WHERE id_ordem = %s
+                RETURNING
+                    id_ordem,
+                    fk_conta,
+                    fk_reserva,
+                    fk_usuario,
+                    status_ordem,
+                    observacao,
+                    total_ordem::float AS total_ordem,
+                    dt_recebimento,
+                    dt_previsao_entrega,
+                    dt_entrega,
+                    dt_cancelamento,
+                    dt_criacao;
+                """,
+                params
+            )
+            ordem = dictfetchall(cursor)[0]
+
+            if novo_status == 'Cancelado' and status_anterior != 'Cancelado':
+                cursor.execute(
+                    """
+                    UPDATE conta_consumo
+                    SET total_acumulado = GREATEST(total_acumulado - %s, 0)
+                    WHERE id_conta = %s;
+                    """,
+                    [ordem_atual['total_ordem'], ordem_atual['fk_conta']]
+                )
+
+            cursor.execute(
+                """
+                INSERT INTO historico_lavanderia_status (
+                    fk_ordem,
+                    status_anterior,
+                    status_novo,
+                    fk_usuario,
+                    observacao
+                )
+                VALUES (%s, %s, %s, %s, %s);
+                """,
+                [
+                    ordem_id,
+                    status_anterior,
+                    novo_status,
+                    usuario_id,
+                    observacao.strip() if isinstance(observacao, str) and observacao.strip() else None,
+                ]
+            )
+
+        return success_response(ordem, 'ORDEM_LAVANDERIA_STATUS_UPDATED')
+    except Exception as e:
+        return error_response(str(e), 'SERVER_ERROR', 500)
+
+
 @csrf_exempt
 @token_required
 @transaction.atomic
@@ -2923,6 +3482,7 @@ def consumo_conta_detail_view(request, conta_id):
                 [conta_id]
             )
             itens = dictfetchall(cursor)
+            ordens_lavanderia = _buscar_ordens_lavanderia_por_conta(cursor, conta_id)
 
         itens_por_venda = {}
         for item in itens:
@@ -2933,6 +3493,7 @@ def consumo_conta_detail_view(request, conta_id):
 
         response = conta[0]
         response['vendas'] = vendas
+        response['ordens_lavanderia'] = ordens_lavanderia
         return success_response(response)
     except Exception as e:
         return error_response(str(e), 'SERVER_ERROR', 500)
