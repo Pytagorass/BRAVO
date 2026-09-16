@@ -15,6 +15,7 @@ import ClientesPage from './pages/ClientesPage';
 import QuartosPage from './pages/QuartosPage';
 import BarcosPage from './pages/BarcosPage';
 import GestaoPage from './pages/GestaoPage';
+import ConsumoPage from './pages/ConsumoPage';
 import MainLayout from './layouts/MainLayout';
 
 // Gatekeeper das rotas internas: verifica token e decide se carrega o layout.
@@ -45,6 +46,7 @@ function App() {
           <Route path="/clientes" element={<ClientesPage />} />
           <Route path="/quartos" element={<QuartosPage />} />
           <Route path="/barcos" element={<BarcosPage />} />
+          <Route path="/consumo" element={<ConsumoPage />} />
           <Route path="/gestao" element={<GestaoPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" />} />

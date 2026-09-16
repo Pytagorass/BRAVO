@@ -13,6 +13,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
+import { ShoppingBag } from 'react-feather';
 import './Sidebar.css';
 import UsuarioModal from './UsuarioModal';
 
@@ -95,6 +96,10 @@ function Sidebar({ handleLogout }) {
                     <NavLink to="/barcos" title="Barcos">
                         <IconBarcos />
                         <span className="link-text">Barcos</span>
+                    </NavLink>
+                    <NavLink to="/consumo" title="Consumo">
+                        <ShoppingBag size={20} />
+                        <span className="link-text">Consumo</span>
                     </NavLink>
                     <NavLink to="/gestao" title="Gestão">
                         <IconGestao />

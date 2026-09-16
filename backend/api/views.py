@@ -5,6 +5,7 @@ import json
 import jwt
 import datetime
 import bcrypt 
+from decimal import Decimal, InvalidOperation
 from functools import wraps
 
 # Importações do Django
@@ -1930,6 +1931,872 @@ def get_reservas_pendentes(request):
         return success_response({'reservas': reservas})
     except Exception as e:
         return error_response(str(e), 'ERRO_INTERNO', 500)
+
+
+# =======================================================================
+# MODULO DE CONSUMO (RESTAURANTE, BAR E LOJINHA)
+# =======================================================================
+
+TIPOS_CONSUMO_VALIDOS = ('Restaurante', 'Lojinha', 'Outros')
+STATUS_ATIVO_VALIDOS = ('Ativo', 'Inativo')
+
+
+def _parse_json_body(request):
+    try:
+        if not request.body:
+            return {}, None
+        return json.loads(request.body), None
+    except json.JSONDecodeError:
+        return None, error_response('JSON invalido.', 'INVALID_JSON', 400)
+
+
+def _parse_bool(value, default=False):
+    if value in (None, ''):
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in ('true', '1', 'sim', 'yes'):
+            return True
+        if normalized in ('false', '0', 'nao', 'não', 'no'):
+            return False
+    return bool(value)
+
+
+def _parse_decimal(value, field_label, allow_zero=True):
+    try:
+        parsed = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None, error_response(f'{field_label} deve ser um numero valido.', 'VALIDATION_ERROR', 400)
+
+    if parsed < 0 or (not allow_zero and parsed == 0):
+        return None, error_response(f'{field_label} deve ser maior que zero.', 'VALIDATION_ERROR', 400)
+
+    return parsed, None
+
+
+def _parse_int(value, field_label, minimum=None):
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None, error_response(f'{field_label} deve ser um numero inteiro.', 'VALIDATION_ERROR', 400)
+
+    if minimum is not None and parsed < minimum:
+        return None, error_response(f'{field_label} deve ser maior ou igual a {minimum}.', 'VALIDATION_ERROR', 400)
+
+    return parsed, None
+
+
+def _validar_categoria_consumo_payload(data):
+    nome_categoria = (data.get('nome_categoria') or '').strip()
+    tipo_categoria = data.get('tipo_categoria') or data.get('origem') or 'Restaurante'
+    ativo = data.get('ativo') or 'Ativo'
+
+    if not nome_categoria:
+        return None, error_response('Nome da categoria e obrigatorio.', 'VALIDATION_ERROR', 400)
+
+    if tipo_categoria not in TIPOS_CONSUMO_VALIDOS:
+        return None, error_response('Tipo de categoria invalido.', 'VALIDATION_ERROR', 400)
+
+    if ativo not in STATUS_ATIVO_VALIDOS:
+        return None, error_response('Status da categoria invalido.', 'VALIDATION_ERROR', 400)
+
+    return {
+        'nome_categoria': nome_categoria,
+        'tipo_categoria': tipo_categoria,
+        'ativo': ativo,
+    }, None
+
+
+def _validar_produto_consumo_payload(data):
+    nome_produto = (data.get('nome_produto') or '').strip()
+    if not nome_produto:
+        return None, error_response('Nome do produto e obrigatorio.', 'VALIDATION_ERROR', 400)
+
+    fk_categoria, error = _parse_int(data.get('fk_categoria'), 'Categoria', 1)
+    if error:
+        return None, error
+
+    preco_atual, error = _parse_decimal(data.get('preco_atual'), 'Preco atual')
+    if error:
+        return None, error
+
+    controla_estoque = _parse_bool(data.get('controla_estoque'), False)
+    estoque_atual, error = _parse_int(data.get('estoque_atual') or 0, 'Estoque atual', 0)
+    if error:
+        return None, error
+
+    estoque_minimo, error = _parse_int(data.get('estoque_minimo') or 0, 'Estoque minimo', 0)
+    if error:
+        return None, error
+
+    ativo = data.get('ativo') or 'Ativo'
+    if ativo not in STATUS_ATIVO_VALIDOS:
+        return None, error_response('Status do produto invalido.', 'VALIDATION_ERROR', 400)
+
+    if not controla_estoque:
+        estoque_atual = 0
+        estoque_minimo = 0
+
+    descricao = data.get('descricao')
+
+    return {
+        'fk_categoria': fk_categoria,
+        'nome_produto': nome_produto,
+        'descricao': descricao.strip() if isinstance(descricao, str) and descricao.strip() else None,
+        'preco_atual': preco_atual,
+        'controla_estoque': controla_estoque,
+        'estoque_atual': estoque_atual,
+        'estoque_minimo': estoque_minimo,
+        'ativo': ativo,
+    }, None
+
+
+@csrf_exempt
+@token_required
+@require_http_methods(["GET", "POST"])
+def consumo_categorias_view(request):
+    if request.method == 'POST':
+        data, parse_error = _parse_json_body(request)
+        if parse_error:
+            return parse_error
+
+        payload, error = _validar_categoria_consumo_payload(data)
+        if error:
+            return error
+
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO categoria_produto (nome_categoria, tipo_categoria, ativo)
+                    VALUES (%s, %s, %s)
+                    RETURNING id_categoria, nome_categoria, tipo_categoria, ativo, dt_criacao;
+                    """,
+                    [payload['nome_categoria'], payload['tipo_categoria'], payload['ativo']]
+                )
+                categoria = dictfetchall(cursor)[0]
+
+            return success_response(categoria, 'CATEGORIA_CREATED', 201)
+        except IntegrityError:
+            return error_response('Categoria ja cadastrada para este tipo.', 'CONFLICT', 409)
+        except Exception as e:
+            return error_response(str(e), 'SERVER_ERROR', 500)
+
+    tipo_categoria = request.GET.get('tipo_categoria') or request.GET.get('origem')
+    ativo = request.GET.get('ativo') or 'Ativo'
+    filtros = []
+    params = []
+
+    if tipo_categoria:
+        if tipo_categoria not in TIPOS_CONSUMO_VALIDOS:
+            return error_response('Tipo de categoria invalido.', 'VALIDATION_ERROR', 400)
+        filtros.append('tipo_categoria = %s')
+        params.append(tipo_categoria)
+
+    if ativo != 'Todos':
+        if ativo not in STATUS_ATIVO_VALIDOS:
+            return error_response('Status da categoria invalido.', 'VALIDATION_ERROR', 400)
+        filtros.append('ativo = %s')
+        params.append(ativo)
+
+    where_clause = f"WHERE {' AND '.join(filtros)}" if filtros else ''
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT id_categoria, nome_categoria, tipo_categoria, ativo, dt_criacao
+                FROM categoria_produto
+                {where_clause}
+                ORDER BY tipo_categoria, nome_categoria;
+                """,
+                params
+            )
+            categorias = dictfetchall(cursor)
+
+        return success_response(categorias)
+    except Exception as e:
+        return error_response(str(e), 'SERVER_ERROR', 500)
+
+
+@csrf_exempt
+@token_required
+@require_http_methods(["GET", "POST"])
+def consumo_produtos_view(request):
+    if request.method == 'POST':
+        data, parse_error = _parse_json_body(request)
+        if parse_error:
+            return parse_error
+
+        payload, error = _validar_produto_consumo_payload(data)
+        if error:
+            return error
+
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT id_categoria FROM categoria_produto WHERE id_categoria = %s;", [payload['fk_categoria']])
+                if not cursor.fetchone():
+                    return error_response('Categoria nao encontrada.', 'NOT_FOUND', 404)
+
+                cursor.execute(
+                    """
+                    INSERT INTO produto (
+                        fk_categoria,
+                        nome_produto,
+                        descricao,
+                        preco_atual,
+                        controla_estoque,
+                        estoque_atual,
+                        estoque_minimo,
+                        ativo
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING
+                        id_produto,
+                        fk_categoria,
+                        nome_produto,
+                        descricao,
+                        preco_atual::float AS preco_atual,
+                        controla_estoque,
+                        estoque_atual,
+                        estoque_minimo,
+                        ativo,
+                        dt_criacao,
+                        dt_atualizacao;
+                    """,
+                    [
+                        payload['fk_categoria'],
+                        payload['nome_produto'],
+                        payload['descricao'],
+                        payload['preco_atual'],
+                        payload['controla_estoque'],
+                        payload['estoque_atual'],
+                        payload['estoque_minimo'],
+                        payload['ativo'],
+                    ]
+                )
+                produto = dictfetchall(cursor)[0]
+
+            return success_response(produto, 'PRODUTO_CREATED', 201)
+        except IntegrityError:
+            return error_response('Produto ja cadastrado nesta categoria.', 'CONFLICT', 409)
+        except Exception as e:
+            return error_response(str(e), 'SERVER_ERROR', 500)
+
+    origem = request.GET.get('origem') or request.GET.get('tipo_categoria')
+    ativo = request.GET.get('ativo') or 'Ativo'
+    filtros = []
+    params = []
+
+    if origem:
+        if origem not in TIPOS_CONSUMO_VALIDOS:
+            return error_response('Origem de consumo invalida.', 'VALIDATION_ERROR', 400)
+        filtros.append('c.tipo_categoria = %s')
+        params.append(origem)
+
+    if ativo != 'Todos':
+        if ativo not in STATUS_ATIVO_VALIDOS:
+            return error_response('Status do produto invalido.', 'VALIDATION_ERROR', 400)
+        filtros.append('p.ativo = %s')
+        params.append(ativo)
+
+    where_clause = f"WHERE {' AND '.join(filtros)}" if filtros else ''
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT
+                    p.id_produto,
+                    p.fk_categoria,
+                    c.nome_categoria,
+                    c.tipo_categoria,
+                    p.nome_produto,
+                    p.descricao,
+                    p.preco_atual::float AS preco_atual,
+                    p.controla_estoque,
+                    p.estoque_atual,
+                    p.estoque_minimo,
+                    p.ativo,
+                    p.dt_criacao,
+                    p.dt_atualizacao
+                FROM produto p
+                JOIN categoria_produto c ON c.id_categoria = p.fk_categoria
+                {where_clause}
+                ORDER BY c.tipo_categoria, c.nome_categoria, p.nome_produto;
+                """,
+                params
+            )
+            produtos = dictfetchall(cursor)
+
+        return success_response(produtos)
+    except Exception as e:
+        return error_response(str(e), 'SERVER_ERROR', 500)
+
+
+@csrf_exempt
+@token_required
+@require_http_methods(["GET", "PUT", "PATCH"])
+def consumo_produto_detail_view(request, produto_id):
+    if request.method == 'GET':
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT
+                        p.id_produto,
+                        p.fk_categoria,
+                        c.nome_categoria,
+                        c.tipo_categoria,
+                        p.nome_produto,
+                        p.descricao,
+                        p.preco_atual::float AS preco_atual,
+                        p.controla_estoque,
+                        p.estoque_atual,
+                        p.estoque_minimo,
+                        p.ativo,
+                        p.dt_criacao,
+                        p.dt_atualizacao
+                    FROM produto p
+                    JOIN categoria_produto c ON c.id_categoria = p.fk_categoria
+                    WHERE p.id_produto = %s;
+                    """,
+                    [produto_id]
+                )
+                produto = dictfetchall(cursor)
+
+            if not produto:
+                return error_response('Produto nao encontrado.', 'NOT_FOUND', 404)
+
+            return success_response(produto[0])
+        except Exception as e:
+            return error_response(str(e), 'SERVER_ERROR', 500)
+
+    data, parse_error = _parse_json_body(request)
+    if parse_error:
+        return parse_error
+
+    if request.method == 'PATCH':
+        ativo = data.get('ativo')
+        if ativo not in STATUS_ATIVO_VALIDOS:
+            return error_response('Status do produto invalido.', 'VALIDATION_ERROR', 400)
+
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE produto
+                    SET ativo = %s, dt_atualizacao = NOW()
+                    WHERE id_produto = %s
+                    RETURNING id_produto, ativo, dt_atualizacao;
+                    """,
+                    [ativo, produto_id]
+                )
+                produto = dictfetchall(cursor)
+
+            if not produto:
+                return error_response('Produto nao encontrado.', 'NOT_FOUND', 404)
+
+            return success_response(produto[0], 'PRODUTO_STATUS_UPDATED')
+        except Exception as e:
+            return error_response(str(e), 'SERVER_ERROR', 500)
+
+    payload, error = _validar_produto_consumo_payload(data)
+    if error:
+        return error
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT id_categoria FROM categoria_produto WHERE id_categoria = %s;", [payload['fk_categoria']])
+            if not cursor.fetchone():
+                return error_response('Categoria nao encontrada.', 'NOT_FOUND', 404)
+
+            cursor.execute(
+                """
+                UPDATE produto
+                SET
+                    fk_categoria = %s,
+                    nome_produto = %s,
+                    descricao = %s,
+                    preco_atual = %s,
+                    controla_estoque = %s,
+                    estoque_atual = %s,
+                    estoque_minimo = %s,
+                    ativo = %s,
+                    dt_atualizacao = NOW()
+                WHERE id_produto = %s
+                RETURNING
+                    id_produto,
+                    fk_categoria,
+                    nome_produto,
+                    descricao,
+                    preco_atual::float AS preco_atual,
+                    controla_estoque,
+                    estoque_atual,
+                    estoque_minimo,
+                    ativo,
+                    dt_criacao,
+                    dt_atualizacao;
+                """,
+                [
+                    payload['fk_categoria'],
+                    payload['nome_produto'],
+                    payload['descricao'],
+                    payload['preco_atual'],
+                    payload['controla_estoque'],
+                    payload['estoque_atual'],
+                    payload['estoque_minimo'],
+                    payload['ativo'],
+                    produto_id,
+                ]
+            )
+            produto = dictfetchall(cursor)
+
+        if not produto:
+            return error_response('Produto nao encontrado.', 'NOT_FOUND', 404)
+
+        return success_response(produto[0], 'PRODUTO_UPDATED')
+    except IntegrityError:
+        return error_response('Produto ja cadastrado nesta categoria.', 'CONFLICT', 409)
+    except Exception as e:
+        return error_response(str(e), 'SERVER_ERROR', 500)
+
+
+@csrf_exempt
+@token_required
+@require_http_methods(["GET"])
+def consumo_reservas_abertas_view(request):
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    r.id_reserva,
+                    r.fk_hospede_titular AS id_hospede,
+                    rq.id_quarto,
+                    cc.id_conta,
+                    h.nome_hospede,
+                    q.numero AS numero_quarto,
+                    r.status_reserva,
+                    COALESCE(cc.status_conta::text, 'Sem Conta') AS status_conta,
+                    COALESCE(cc.total_acumulado, 0)::float AS total_acumulado,
+                    r.data_embarque,
+                    r.data_desembarque,
+                    r.status_operacional
+                FROM reserva r
+                LEFT JOIN LATERAL (
+                    SELECT rq_inner.fk_quarto AS id_quarto
+                    FROM reserva_quarto rq_inner
+                    WHERE rq_inner.fk_reserva = r.id_reserva
+                    ORDER BY rq_inner.checkin DESC
+                    LIMIT 1
+                ) rq ON TRUE
+                LEFT JOIN quarto q ON q.id_quarto = rq.id_quarto
+                LEFT JOIN hospede h ON h.id_hospede = r.fk_hospede_titular
+                LEFT JOIN conta_consumo cc ON cc.fk_reserva = r.id_reserva
+                WHERE r.status_reserva = 'Ativa'
+                  AND (cc.id_conta IS NULL OR cc.status_conta = 'Aberta')
+                ORDER BY q.numero, h.nome_hospede;
+                """
+            )
+            reservas = dictfetchall(cursor)
+
+        return success_response(reservas)
+    except Exception as e:
+        return error_response(str(e), 'SERVER_ERROR', 500)
+
+
+def _buscar_ou_criar_conta_consumo(cursor, reserva_id):
+    cursor.execute(
+        """
+        INSERT INTO conta_consumo (fk_reserva)
+        VALUES (%s)
+        ON CONFLICT (fk_reserva) DO UPDATE
+            SET fk_reserva = EXCLUDED.fk_reserva
+        RETURNING id_conta, status_conta;
+        """,
+        [reserva_id]
+    )
+    conta = dictfetchall(cursor)[0]
+
+    if conta['status_conta'] != 'Aberta':
+        return None, error_response('A conta de consumo desta reserva nao esta aberta.', 'CONTA_FECHADA', 409)
+
+    return conta, None
+
+
+@csrf_exempt
+@token_required
+@transaction.atomic
+@require_http_methods(["POST"])
+def consumo_vendas_view(request):
+    data, parse_error = _parse_json_body(request)
+    if parse_error:
+        return parse_error
+
+    reserva_id = data.get('fk_reserva') or data.get('id_reserva')
+    reserva_id, error = _parse_int(reserva_id, 'Reserva', 1)
+    if error:
+        return error
+
+    origem = data.get('origem') or data.get('tipo_categoria') or 'Restaurante'
+    if origem not in TIPOS_CONSUMO_VALIDOS:
+        return error_response('Origem de consumo invalida.', 'VALIDATION_ERROR', 400)
+
+    itens = data.get('itens') or []
+    if not isinstance(itens, list) or not itens:
+        return error_response('Informe ao menos um item para a venda.', 'VALIDATION_ERROR', 400)
+
+    usuario_id = request.user_token_payload.get('id_usuario')
+    observacao = data.get('observacao')
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id_reserva, status_reserva
+                FROM reserva
+                WHERE id_reserva = %s
+                FOR UPDATE;
+                """,
+                [reserva_id]
+            )
+            reserva = dictfetchall(cursor)
+            if not reserva:
+                return error_response('Reserva nao encontrada.', 'NOT_FOUND', 404)
+            if reserva[0]['status_reserva'] != 'Ativa':
+                return error_response('Apenas reservas ativas podem receber consumo.', 'RESERVA_INATIVA', 409)
+
+            conta, conta_error = _buscar_ou_criar_conta_consumo(cursor, reserva_id)
+            if conta_error:
+                return conta_error
+
+            itens_processados = []
+            total_venda = Decimal('0.00')
+
+            for item in itens:
+                produto_id = item.get('fk_produto') or item.get('id_produto')
+                produto_id, error = _parse_int(produto_id, 'Produto', 1)
+                if error:
+                    return error
+
+                quantidade, error = _parse_int(item.get('quantidade'), 'Quantidade', 1)
+                if error:
+                    return error
+
+                cursor.execute(
+                    """
+                    SELECT
+                        p.id_produto,
+                        p.nome_produto,
+                        p.preco_atual,
+                        p.controla_estoque,
+                        p.estoque_atual,
+                        c.tipo_categoria
+                    FROM produto p
+                    JOIN categoria_produto c ON c.id_categoria = p.fk_categoria
+                    WHERE p.id_produto = %s
+                      AND p.ativo = 'Ativo'
+                      AND c.ativo = 'Ativo'
+                    FOR UPDATE;
+                    """,
+                    [produto_id]
+                )
+                produto_result = dictfetchall(cursor)
+                if not produto_result:
+                    return error_response('Produto nao encontrado ou inativo.', 'PRODUTO_INATIVO', 404)
+
+                produto = produto_result[0]
+                if produto['tipo_categoria'] != origem:
+                    return error_response(
+                        'Produto nao pertence a origem informada para a venda.',
+                        'PRODUTO_ORIGEM_INVALIDA',
+                        400,
+                        {
+                            'id_produto': produto_id,
+                            'origem_venda': origem,
+                            'origem_produto': produto['tipo_categoria'],
+                        }
+                    )
+
+                if produto['controla_estoque'] and produto['estoque_atual'] < quantidade:
+                    return error_response(
+                        'Estoque insuficiente para o produto.',
+                        'ESTOQUE_INSUFICIENTE',
+                        409,
+                        {
+                            'id_produto': produto_id,
+                            'nome_produto': produto['nome_produto'],
+                            'estoque_atual': produto['estoque_atual'],
+                            'quantidade_solicitada': quantidade,
+                        }
+                    )
+
+                valor_unitario = produto['preco_atual']
+                subtotal = valor_unitario * quantidade
+                total_venda += subtotal
+                itens_processados.append({
+                    'id_produto': produto_id,
+                    'nome_produto': produto['nome_produto'],
+                    'quantidade': quantidade,
+                    'valor_unitario': valor_unitario,
+                    'subtotal': subtotal,
+                    'observacao': item.get('observacao'),
+                    'controla_estoque': produto['controla_estoque'],
+                    'estoque_atual': produto['estoque_atual'],
+                })
+
+            cursor.execute(
+                """
+                INSERT INTO venda_consumo (
+                    fk_conta,
+                    fk_reserva,
+                    fk_usuario,
+                    origem,
+                    observacao,
+                    total_venda
+                )
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING
+                    id_venda,
+                    fk_conta,
+                    fk_reserva,
+                    fk_usuario,
+                    origem,
+                    status_venda,
+                    observacao,
+                    total_venda::float AS total_venda,
+                    dt_criacao;
+                """,
+                [
+                    conta['id_conta'],
+                    reserva_id,
+                    usuario_id,
+                    origem,
+                    observacao.strip() if isinstance(observacao, str) and observacao.strip() else None,
+                    total_venda,
+                ]
+            )
+            venda = dictfetchall(cursor)[0]
+
+            itens_response = []
+            for item in itens_processados:
+                cursor.execute(
+                    """
+                    INSERT INTO item_venda_consumo (
+                        fk_venda,
+                        fk_produto,
+                        quantidade,
+                        valor_unitario,
+                        subtotal,
+                        observacao
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    RETURNING
+                        id_item,
+                        fk_venda,
+                        fk_produto,
+                        quantidade,
+                        valor_unitario::float AS valor_unitario,
+                        subtotal::float AS subtotal,
+                        observacao,
+                        dt_criacao;
+                    """,
+                    [
+                        venda['id_venda'],
+                        item['id_produto'],
+                        item['quantidade'],
+                        item['valor_unitario'],
+                        item['subtotal'],
+                        item['observacao'],
+                    ]
+                )
+                item_salvo = dictfetchall(cursor)[0]
+                item_salvo['nome_produto'] = item['nome_produto']
+                itens_response.append(item_salvo)
+
+                if item['controla_estoque']:
+                    estoque_anterior = item['estoque_atual']
+                    estoque_posterior = estoque_anterior - item['quantidade']
+                    cursor.execute(
+                        """
+                        UPDATE produto
+                        SET estoque_atual = %s, dt_atualizacao = NOW()
+                        WHERE id_produto = %s;
+                        """,
+                        [estoque_posterior, item['id_produto']]
+                    )
+                    cursor.execute(
+                        """
+                        INSERT INTO movimento_estoque (
+                            fk_produto,
+                            fk_usuario,
+                            fk_item_venda,
+                            tipo_movimento,
+                            quantidade,
+                            estoque_anterior,
+                            estoque_posterior,
+                            observacao
+                        )
+                        VALUES (%s, %s, %s, 'Saida', %s, %s, %s, %s);
+                        """,
+                        [
+                            item['id_produto'],
+                            usuario_id,
+                            item_salvo['id_item'],
+                            item['quantidade'],
+                            estoque_anterior,
+                            estoque_posterior,
+                            f'Venda consumo #{venda["id_venda"]}',
+                        ]
+                    )
+
+            cursor.execute(
+                """
+                UPDATE conta_consumo
+                SET total_acumulado = total_acumulado + %s
+                WHERE id_conta = %s
+                RETURNING total_acumulado::float AS total_acumulado;
+                """,
+                [total_venda, conta['id_conta']]
+            )
+            conta_atualizada = dictfetchall(cursor)[0]
+
+        venda['itens'] = itens_response
+        venda['total_acumulado_conta'] = conta_atualizada['total_acumulado']
+        return success_response(venda, 'VENDA_CREATED', 201)
+    except Exception as e:
+        return error_response(str(e), 'SERVER_ERROR', 500)
+
+
+@csrf_exempt
+@token_required
+@require_http_methods(["GET"])
+def consumo_conta_detail_view(request, conta_id):
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    cc.id_conta,
+                    cc.fk_reserva,
+                    cc.total_acumulado::float AS total_acumulado,
+                    cc.status_conta,
+                    cc.dt_abertura,
+                    cc.dt_fechamento,
+                    r.status_reserva,
+                    h.id_hospede,
+                    h.nome_hospede,
+                    q.id_quarto,
+                    q.numero AS numero_quarto
+                FROM conta_consumo cc
+                JOIN reserva r ON r.id_reserva = cc.fk_reserva
+                LEFT JOIN hospede h ON h.id_hospede = r.fk_hospede_titular
+                LEFT JOIN LATERAL (
+                    SELECT rq_inner.fk_quarto AS id_quarto
+                    FROM reserva_quarto rq_inner
+                    WHERE rq_inner.fk_reserva = r.id_reserva
+                    ORDER BY rq_inner.checkin DESC
+                    LIMIT 1
+                ) rq ON TRUE
+                LEFT JOIN quarto q ON q.id_quarto = rq.id_quarto
+                WHERE cc.id_conta = %s;
+                """,
+                [conta_id]
+            )
+            conta = dictfetchall(cursor)
+            if not conta:
+                return error_response('Conta de consumo nao encontrada.', 'NOT_FOUND', 404)
+
+            cursor.execute(
+                """
+                SELECT
+                    id_venda,
+                    origem,
+                    status_venda,
+                    observacao,
+                    total_venda::float AS total_venda,
+                    dt_criacao,
+                    dt_cancelamento
+                FROM venda_consumo
+                WHERE fk_conta = %s
+                ORDER BY dt_criacao DESC;
+                """,
+                [conta_id]
+            )
+            vendas = dictfetchall(cursor)
+
+            cursor.execute(
+                """
+                SELECT
+                    i.id_item,
+                    i.fk_venda,
+                    i.fk_produto,
+                    p.nome_produto,
+                    c.nome_categoria,
+                    c.tipo_categoria,
+                    i.quantidade,
+                    i.valor_unitario::float AS valor_unitario,
+                    i.subtotal::float AS subtotal,
+                    i.observacao,
+                    i.dt_criacao
+                FROM item_venda_consumo i
+                JOIN venda_consumo v ON v.id_venda = i.fk_venda
+                JOIN produto p ON p.id_produto = i.fk_produto
+                JOIN categoria_produto c ON c.id_categoria = p.fk_categoria
+                WHERE v.fk_conta = %s
+                ORDER BY i.dt_criacao ASC;
+                """,
+                [conta_id]
+            )
+            itens = dictfetchall(cursor)
+
+        itens_por_venda = {}
+        for item in itens:
+            itens_por_venda.setdefault(item['fk_venda'], []).append(item)
+
+        for venda in vendas:
+            venda['itens'] = itens_por_venda.get(venda['id_venda'], [])
+
+        response = conta[0]
+        response['vendas'] = vendas
+        return success_response(response)
+    except Exception as e:
+        return error_response(str(e), 'SERVER_ERROR', 500)
+
+
+@csrf_exempt
+@token_required
+@transaction.atomic
+@require_http_methods(["POST"])
+def consumo_fechar_conta_view(request, conta_id):
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE conta_consumo
+                SET status_conta = 'Fechada', dt_fechamento = NOW()
+                WHERE id_conta = %s
+                  AND status_conta = 'Aberta'
+                RETURNING
+                    id_conta,
+                    fk_reserva,
+                    total_acumulado::float AS total_acumulado,
+                    status_conta,
+                    dt_fechamento;
+                """,
+                [conta_id]
+            )
+            conta = dictfetchall(cursor)
+
+        if not conta:
+            return error_response('Conta nao encontrada ou ja fechada.', 'CONTA_NAO_ABERTA', 409)
+
+        return success_response(conta[0], 'CONTA_FECHADA')
+    except Exception as e:
+        return error_response(str(e), 'SERVER_ERROR', 500)
 
 
 

@@ -94,6 +94,20 @@ export const updateUsuarioPerfil = (perfilData) => apiClient.put('/perfil/', per
 export const fetchIndicadoresGestao = (ano) => apiClient.get('/gestao/indicadores/', { params: { ano } });
 export const fetchReservasPendentesGestao = () => apiClient.get('/gestao/reservas-pendentes/');
 
+// --- CONSUMO (RESTAURANTE, BAR E LOJINHA) ---
+export const fetchConsumoCategorias = (params = {}) => apiClient.get('/consumo/categorias/', { params });
+export const createConsumoCategoria = (categoriaData) => apiClient.post('/consumo/categorias/', categoriaData);
+export const fetchConsumoProdutos = (params = {}) => apiClient.get('/consumo/produtos/', { params });
+export const createConsumoProduto = (produtoData) => apiClient.post('/consumo/produtos/', produtoData);
+export const updateConsumoProduto = (produtoId, produtoData) =>
+  apiClient.put(`/consumo/produtos/${produtoId}/`, produtoData);
+export const updateConsumoProdutoStatus = (produtoId, ativo) =>
+  apiClient.patch(`/consumo/produtos/${produtoId}/`, { ativo });
+export const fetchConsumoReservasAbertas = () => apiClient.get('/consumo/reservas-abertas/');
+export const createConsumoVenda = (vendaData) => apiClient.post('/consumo/vendas/', vendaData);
+export const fetchConsumoConta = (contaId) => apiClient.get(`/consumo/contas/${contaId}/`);
+export const fecharConsumoConta = (contaId) => apiClient.post(`/consumo/contas/${contaId}/fechar/`);
+
 // --- OPERACAO DE VIAGEM ---
 export const fetchBarcos = (params = {}) =>
   apiClient.get('/barcos/', { params: { status: 'Disponível', ...params } });
