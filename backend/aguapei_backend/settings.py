@@ -9,7 +9,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'django-insecure-34yxwhlf5qj&*dn4xh_^u(mw5ef8*%2cw&%z&^)@rf_z-z0uy8'
 DEBUG = True
-ALLOWED_HOSTS = []
+# Em desenvolvimento mobile o app pode chamar a API via 10.0.2.2
+# (Android Emulator) ou pelo IP local da maquina na rede.
+ALLOWED_HOSTS = ['*'] if DEBUG else []
 
 # =======================================================================
 # APLICAÇÕES

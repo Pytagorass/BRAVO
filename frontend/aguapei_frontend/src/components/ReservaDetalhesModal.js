@@ -417,6 +417,27 @@ function ReservaDetalhesModal({ show, handleClose, reservaId, onUpdateSuccess, o
         }
     };
 
+    const handleCheckIn = async () => {
+        if (!reserva) return;
+        setIsUpdating(true);
+        setUpdateError(null);
+        const payload = { status_reserva: 'Ativa' };
+
+        try {
+            const responseData = await updateReservaStatus(reserva.id_reserva_quarto, payload);
+            setReserva(responseData);
+            toast.success('Check-in realizado com sucesso! Reserva ativa para consumo.');
+            if (onUpdateSuccess) onUpdateSuccess(responseData, { keepDetailsOpen: true });
+        } catch (err) {
+            const apiError = err?.error || err || {};
+            const errorMsg = apiError.message || 'Falha ao realizar o check-in.';
+            setUpdateError(errorMsg);
+            toast.error(errorMsg);
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
     const handleCancelClick = () => setShowConfirmCancel(true);
 
     const handleConfirmCancelamento = async () => {
@@ -725,6 +746,12 @@ function ReservaDetalhesModal({ show, handleClose, reservaId, onUpdateSuccess, o
                     {!loading && reserva && reserva.status_reserva !== 'Cancelada' && (
                         <Button variant="primary" disabled={isUpdating} onClick={handleAbrirModalEdicao}>
                             Editar Reserva
+                        </Button>
+                    )}
+
+                    {!loading && reserva && reserva.status_reserva === 'Agendada' && (
+                        <Button variant="success" disabled={isUpdating} onClick={handleCheckIn}>
+                            {isUpdating ? <Spinner as="span" animation="border" size="sm" /> : 'Fazer Check-in'}
                         </Button>
                     )}
 
