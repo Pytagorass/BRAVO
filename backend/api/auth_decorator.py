@@ -1,76 +1,95 @@
-"""
-Módulo responsável por centralizar o decorador de autenticação JWT.
-Todas as views protegidas o utilizam para garantir que o token gerado
-em `login_view` (consumido pelo React) seja validado antes da execução.
-"""
-
-import jwt
-from django.conf import settings
-from django.http import JsonResponse
 from functools import wraps
 
+from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.tokens import AccessToken
 
-def token_required(view_func):
-    """
-    Decorador utilizado nas views protegidas (reservas, hóspedes, BI).
+from .access_control import role_is_allowed
+from .models import Usuario
+from .responses import error_response
 
-    Parâmetros:
-        view_func (callable): view original que requer autenticação.
 
-    Retorno:
-        callable: função embrulhada que executa a validação antes de
-        chamar a view real. Em caso de falha retorna JsonResponse 401/500.
+def _extract_bearer_token(request):
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return None, error_response('Token de autenticacao nao fornecido.', 'AUTH_TOKEN_MISSING', 401)
 
-    Fluxo resumido:
-        1. Lê o cabeçalho Authorization enviado pelo axios (Bearer token).
-        2. Valida o prefixo e extrai o JWT.
-        3. Decodifica com SECRET_KEY e verifica se `id_usuario` existe.
-        4. Anexa o payload no request (usado para auditoria nas views).
-        5. Em caso de sucesso, chama a view originalmente decorada.
+    parts = auth_header.split()
+    if len(parts) != 2 or parts[0].lower() != 'bearer':
+        return None, error_response('Cabecalho de autorizacao mal formatado.', 'AUTH_HEADER_INVALID', 401)
 
-    Relação com o front-end:
-        O `apiClient` injeta `Authorization: Bearer <token>` em todas as
-        requisições após o login. Este decorador faz o gatekeeper dessas
-        rotas, devolvendo 401 para que o React trate e redirecione para o
-        `/login` quando necessário.
-    """
+    return parts[1], None
 
-    @wraps(view_func)
-    def _wrapped_view(request, *args, **kwargs):
-        # 1. Recupera o header Authorization enviado pelo axios interceptor.
-        auth_header = request.headers.get('Authorization')
 
-        if not auth_header:
-            return JsonResponse({'erro': 'Token de autenticação não fornecido'}, status=401)
+def _get_active_usuario(usuario_id):
+    return (
+        Usuario.objects.only(
+            'id_usuario',
+            'nome_usuario',
+            'email_usuario',
+            'tipo_usuario',
+            'ativo',
+        )
+        .filter(pk=usuario_id, ativo='Ativo')
+        .first()
+    )
 
-        # 2. Garante o formato "Bearer <token>".
-        try:
-            token_type, token = auth_header.split(' ')
-            if token_type.lower() != 'bearer':
-                raise ValueError("Tipo de token inválido")
-        except ValueError:
-            return JsonResponse({'erro': 'Cabeçalho de autorização mal formatado'}, status=401)
 
-        # 3. Decodifica o JWT usando a mesma SECRET_KEY do projeto.
-        try:
-            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
+def _build_request_payload(token_payload, usuario):
+    payload = dict(token_payload)
+    payload.update(
+        {
+            'id_usuario': usuario.id_usuario,
+            'email': usuario.email_usuario,
+            'tipo_usuario': usuario.tipo_usuario,
+            'nome': usuario.nome_usuario,
+        }
+    )
+    return payload
 
-            # 4. Sem `id_usuario` o token é considerado inválido (payload adulterado).
-            user_id = payload.get('id_usuario')
-            if not user_id:
-                raise jwt.InvalidTokenError("Payload do token inválido")
 
-            # Deixa os dados disponíveis para as views (ex.: logs de usuário).
-            request.user_token_payload = payload
+def _roles_for_method(request, roles, method_roles):
+    if not method_roles:
+        return roles
 
-        except jwt.ExpiredSignatureError:
-            return JsonResponse({'erro': 'Token expirado. Faça login novamente.'}, status=401)
-        except jwt.InvalidTokenError as e:
-            return JsonResponse({'erro': f'Token inválido: {str(e)}'}, status=401)
-        except Exception as e:
-            return JsonResponse({'erro': f'Erro de autenticação: {str(e)}'}, status=500)
+    return method_roles.get(request.method, roles)
 
-        # 5. Se tudo deu certo, encaminha para a view original.
-        return view_func(request, *args, **kwargs)
 
-    return _wrapped_view
+def token_required(view_func=None, *, roles=None, method_roles=None):
+    def decorator(func):
+        @wraps(func)
+        def _wrapped_view(request, *args, **kwargs):
+            token, token_error = _extract_bearer_token(request)
+            if token_error:
+                return token_error
+
+            try:
+                access_token = AccessToken(token)
+            except TokenError:
+                return error_response('Token expirado ou invalido.', 'INVALID_TOKEN', 401)
+
+            usuario_id = access_token.payload.get('id_usuario')
+            if not usuario_id:
+                return error_response('Token invalido, ID de usuario nao encontrado.', 'INVALID_TOKEN', 401)
+
+            usuario = _get_active_usuario(usuario_id)
+            if not usuario:
+                return error_response('Usuario inativo ou nao encontrado.', 'AUTH_USER_INACTIVE', 401)
+
+            allowed_roles = _roles_for_method(request, roles, method_roles)
+            if not role_is_allowed(usuario.tipo_usuario, allowed_roles):
+                return error_response(
+                    'Usuario sem permissao para acessar este recurso.',
+                    'FORBIDDEN',
+                    403,
+                )
+
+            request.usuario_autenticado = usuario
+            request.user_token_payload = _build_request_payload(access_token.payload, usuario)
+            return func(request, *args, **kwargs)
+
+        return _wrapped_view
+
+    if view_func is None:
+        return decorator
+
+    return decorator(view_func)

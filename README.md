@@ -2,7 +2,7 @@
 
 Sistema de gestao para operacao de barco-hotel, com backend em Django e frontend em React.
 
-O projeto usa PostgreSQL como banco de dados e SQL direto no backend, sem ORM para as regras principais da aplicacao.
+O projeto usa PostgreSQL como banco de dados. A estrutura do banco e versionada por migrations do Django; algumas consultas operacionais seguem em SQL manual nos repositories quando a regra exige consultas mais especificas.
 
 ## Tecnologias
 
@@ -18,8 +18,9 @@ O projeto usa PostgreSQL como banco de dados e SQL direto no backend, sem ORM pa
 BRAVO/
   backend/                  API Django
   frontend/aguapei_frontend/ Frontend React
-  scripts/postgres/          Scripts auxiliares de banco
-  schema.sql                 Estrutura principal do banco
+  scripts/seeds/             Seeds separados por finalidade
+  scripts/postgres/          SQL legado de referencia
+  schema.sql                 Script legado de referencia
 ```
 
 ## Banco de Dados
@@ -34,21 +35,30 @@ Host: localhost
 Porta: 5432
 ```
 
-Crie o banco no PostgreSQL com o nome `Barco_Hotel` e execute o arquivo `schema.sql`.
-
-No `psql`:
-
-```sql
-\i C:/Users/pytag/BRAVO/schema.sql
-```
-
-No Windows, se o `psql` nao estiver no PATH, use o caminho completo:
+Crie o banco no PostgreSQL com o nome `Barco_Hotel` e execute as migrations do Django.
 
 ```powershell
-& "C:\Program Files\PostgreSQL\17\bin\psql.exe" "postgresql://postgres:123@localhost:5432/Barco_Hotel" -f "C:\Users\pytag\BRAVO\schema.sql"
+cd C:\Users\pytag\BRAVO\backend
+python manage.py migrate
 ```
 
-O script cria as tabelas principais e um usuario administrador.
+Se voce ja tiver um banco criado anteriormente via `schema.sql` e scripts manuais, registre a migration inicial sem recriar tabelas:
+
+```powershell
+python manage.py migrate --fake-initial
+```
+
+Os arquivos `schema.sql` e `scripts/postgres/` ficam como referencia historica e apoio para dados/seeds, mas o caminho principal de estrutura e `python manage.py migrate`.
+
+As migrations tambem carregam os catalogos obrigatorios do sistema, como tipos de passeio, categorias de produto e lavanderia por peca.
+
+Para desenvolvimento local, crie o usuario administrador padrao:
+
+```powershell
+& "C:\Program Files\PostgreSQL\17\bin\psql.exe" "postgresql://postgres:123@localhost:5432/Barco_Hotel" -f "C:\Users\pytag\BRAVO\scripts\seeds\dev\0001_usuario_admin_dev.sql"
+```
+
+Dados demonstrativos ficam em `scripts/seeds/demo/` e sao opcionais.
 
 ## Login Padrao
 
@@ -63,7 +73,7 @@ Abra um terminal PowerShell:
 
 ```powershell
 cd C:\Users\pytag\BRAVO\backend
-python -m pip install Django django-cors-headers PyJWT bcrypt psycopg2-binary
+python -m pip install -r requirements.txt
 python manage.py runserver 127.0.0.1:8000
 ```
 
@@ -78,6 +88,27 @@ Para validar a configuracao do Django sem subir o servidor:
 ```powershell
 python manage.py check
 ```
+
+## Autenticacao e Acessos
+
+O backend usa Django REST Framework + Simple JWT para emitir access token e refresh token.
+O usuario autenticavel do Django e `api.Usuario`, mapeado sobre a tabela existente `usuario`.
+
+Rotas principais:
+
+- `POST /api/login/`: autentica e retorna `token`, `access`, `refresh` e dados do usuario.
+- `POST /api/token/refresh/`: recebe `refresh` e retorna novo `access`.
+
+O decorator de autenticacao confere se o usuario continua ativo no banco a cada requisicao protegida. Revogacao real de sessoes, auditoria de acessos e limite de tentativas ficam para a proxima camada, com tabela propria de sessoes/tentativas.
+Senhas antigas em bcrypt legado sao reconhecidas temporariamente e convertidas para o hash padrao do Django no primeiro login bem-sucedido.
+
+Niveis de acesso iniciais:
+
+- `Gerente` ou `Administrador`: acesso total.
+- `Recepcao`: reservas, hospedes, leitura operacional e fechamento de contas.
+- `Consumo`: lancamentos de bebidas/lojinha e lavanderia pelo app mobile.
+- `Lavanderia`: ordens e status de lavanderia.
+- `Gestao`: leitura de indicadores, agenda e cadastros operacionais.
 
 ## Rodando o Frontend
 
@@ -113,10 +144,15 @@ http://127.0.0.1:8000/api
 ## Arquivos Importantes
 
 - `backend/aguapei_backend/settings.py`: configuracao do Django e conexao com o banco.
-- `backend/api/views.py`: endpoints da API e regras principais.
+- `backend/api/views/`: endpoints da API organizados por modulo.
+- `backend/api/services/`: regras de negocio.
+- `backend/api/repositories/`: acesso ao banco, incluindo SQL manual quando necessario.
+- `backend/api/migrations/`: versao oficial da estrutura do banco.
 - `backend/api/urls.py`: rotas da API.
 - `frontend/aguapei_frontend/src/services/api.js`: configuracao do Axios e URL do backend.
-- `schema.sql`: criacao das tabelas e dados iniciais.
+- `scripts/seeds/`: dados auxiliares separados entre fallback obrigatorio, desenvolvimento e demonstracao.
+- `scripts/postgres/`: scripts legados anteriores ao fluxo oficial de migrations.
+- `schema.sql`: referencia legada da estrutura inicial.
 
 ## Problemas Comuns
 
