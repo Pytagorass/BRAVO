@@ -1,13 +1,32 @@
 import json
+from datetime import timedelta
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import jwt
 from django.conf import settings
-from django.test import Client, RequestFactory, SimpleTestCase
+from django.test import Client, RequestFactory, SimpleTestCase, TestCase
+from django.utils import timezone
 
-from api.access_control import ROLE_RECEPCAO
+from api.access_control import ROLE_GERENTE, ROLE_RECEPCAO
 from api.auth_decorator import token_required
+from api.models import (
+    CategoriaLavanderia,
+    CategoriaProduto,
+    ContaConsumo,
+    Hospede,
+    ItemOrdemLavanderia,
+    ItemVendaConsumo,
+    OrdemLavanderia,
+    Produto,
+    Quarto,
+    Reserva,
+    ReservaQuarto,
+    ServicoLavanderia,
+    Usuario,
+    VendaConsumo,
+)
 from api.responses import success_response
 from api.services.auth_service import _gerar_tokens
 
@@ -164,13 +183,13 @@ class TokenRequiredTests(SimpleTestCase):
     def test_token_required_bloqueia_perfil_sem_permissao(self, buscar_usuario):
         buscar_usuario.return_value = SimpleNamespace(
             id_usuario=7,
-            nome_usuario='Gestao',
-            email_usuario='gestao@teste.com',
-            tipo_usuario='Gestao',
+            nome_usuario='Comercial',
+            email_usuario='comercial@teste.com',
+            tipo_usuario='Comercial',
         )
         request = self.factory.get(
             '/protegido/',
-            HTTP_AUTHORIZATION=f'Bearer {self._token_for("Gestao")}',
+            HTTP_AUTHORIZATION=f'Bearer {self._token_for("Comercial")}',
         )
 
         response = self._protected_view()(request)
@@ -190,3 +209,132 @@ class TokenRequiredTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 401)
         self.assertEqual(json.loads(response.content)['error']['code'], 'AUTH_USER_INACTIVE')
+
+
+class ContasEmBordoTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.url = '/api/gestao/contas-em-bordo/'
+
+        self.gerente = Usuario.objects.create_user(
+            email_usuario='gerente@teste.com',
+            password='123456',
+            nome_usuario='Gerente Teste',
+            tipo_usuario=ROLE_GERENTE,
+        )
+        self.recepcao = Usuario.objects.create_user(
+            email_usuario='recepcao@teste.com',
+            password='123456',
+            nome_usuario='Recepcao Teste',
+            tipo_usuario=ROLE_RECEPCAO,
+        )
+
+    def _auth_headers(self, usuario):
+        token = _gerar_tokens(usuario)['access']
+        return {'HTTP_AUTHORIZATION': f'Bearer {token}'}
+
+    def _criar_conta_com_lancamentos(self):
+        hospede = Hospede.objects.create(
+            nome_hospede='Joao Silva',
+            email_hospede='joao@teste.com',
+            telefone='65999990000',
+            pais_origem='Brasil',
+            cpf='123.456.789-09',
+        )
+        quarto = Quarto.objects.create(
+            numero='101',
+            tipo_quarto='Suite',
+            valor_diaria=Decimal('500.00'),
+            status_quarto='Disponivel',
+        )
+        reserva = Reserva.objects.create(
+            valor_total=Decimal('1500.00'),
+            hospede_titular=hospede,
+            status_reserva='Ativa',
+            status_pagamento='Pago',
+            usuario=self.gerente,
+            data_embarque=timezone.localdate(),
+            data_desembarque=timezone.localdate() + timedelta(days=2),
+        )
+        ReservaQuarto.objects.create(
+            reserva=reserva,
+            quarto=quarto,
+            checkin=timezone.localdate(),
+            checkout=timezone.localdate() + timedelta(days=2),
+            valor_diaria_cobrado=Decimal('500.00'),
+        )
+        conta = ContaConsumo.objects.create(
+            reserva=reserva,
+            total_acumulado=Decimal('45.00'),
+            status_conta='Aberta',
+        )
+        categoria_produto, _ = CategoriaProduto.objects.get_or_create(
+            nome_categoria='Bebidas',
+            tipo_categoria='Restaurante',
+        )
+        produto = Produto.objects.create(
+            categoria=categoria_produto,
+            nome_produto='Agua mineral',
+            preco_atual=Decimal('10.00'),
+            controla_estoque=False,
+        )
+        venda = VendaConsumo.objects.create(
+            conta=conta,
+            reserva=reserva,
+            usuario=self.gerente,
+            origem='Restaurante',
+            total_venda=Decimal('20.00'),
+        )
+        ItemVendaConsumo.objects.create(
+            venda=venda,
+            produto=produto,
+            quantidade=2,
+            valor_unitario=Decimal('10.00'),
+            subtotal=Decimal('20.00'),
+        )
+        categoria_lavanderia, _ = CategoriaLavanderia.objects.get_or_create(
+            nome_categoria='Roupas Leves',
+            defaults={'ordem_exibicao': 1},
+        )
+        servico = ServicoLavanderia.objects.create(
+            categoria=categoria_lavanderia,
+            nome_servico='Camiseta',
+            preco_unitario=Decimal('25.00'),
+        )
+        ordem = OrdemLavanderia.objects.create(
+            conta=conta,
+            reserva=reserva,
+            usuario=self.gerente,
+            total_ordem=Decimal('25.00'),
+        )
+        ItemOrdemLavanderia.objects.create(
+            ordem=ordem,
+            servico=servico,
+            quantidade=1,
+            valor_unitario=Decimal('25.00'),
+            subtotal=Decimal('25.00'),
+        )
+
+    def test_contas_em_bordo_retorna_resumo_e_lancamentos_para_gerente(self):
+        self._criar_conta_com_lancamentos()
+
+        response = self.client.get(self.url, **self._auth_headers(self.gerente))
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()['data']
+        self.assertEqual(data['resumo']['clientes_em_bordo'], 1)
+        self.assertEqual(data['resumo']['contas_abertas'], 1)
+        self.assertEqual(len(data['contas']), 1)
+        conta = data['contas'][0]
+        self.assertEqual(conta['hospede'], 'Joao Silva')
+        self.assertEqual(conta['status_conta'], 'Aberta')
+        self.assertEqual(conta['total_acumulado'], 45.0)
+        self.assertEqual(conta['totais']['bebidas'], 20.0)
+        self.assertEqual(conta['totais']['lavanderia'], 25.0)
+        self.assertEqual(conta['quantidade_lancamentos'], 2)
+
+    def test_contas_em_bordo_bloqueia_perfil_sem_acesso_total(self):
+        response = self.client.get(self.url, **self._auth_headers(self.recepcao))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()['error']['code'], 'FORBIDDEN')

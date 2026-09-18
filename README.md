@@ -105,10 +105,12 @@ Senhas antigas em bcrypt legado sao reconhecidas temporariamente e convertidas p
 Niveis de acesso iniciais:
 
 - `Gerente` ou `Administrador`: acesso total.
-- `Recepcao`: reservas, hospedes, leitura operacional e fechamento de contas.
-- `Consumo`: lancamentos de bebidas/lojinha e lavanderia pelo app mobile.
-- `Lavanderia`: ordens e status de lavanderia.
-- `Gestao`: leitura de indicadores, agenda e cadastros operacionais.
+- `Recepcao`: reservas, hospedes e check-in/status operacional.
+- `Comercial`: reservas e hospedes, como perfil operacional comercial.
+- `Consumo`: bebidas/lojinha, visualizacao de conta e fechamento de conta pelo app mobile.
+- `Lavanderia`: lancamento de lavanderia e visualizacao de conta pelo app mobile.
+
+Dashboard de gestao, quartos, barcos, produtos e precos ficam restritos a `Gerente` ou `Administrador`.
 
 ## Rodando o Frontend
 

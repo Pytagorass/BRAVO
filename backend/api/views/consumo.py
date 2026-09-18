@@ -6,7 +6,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from ..access_control import CONSUMO_LAVANDERIA_ROLES, FULL_ACCESS_ROLES
+from ..access_control import CONSUMO_ROLES, FULL_ACCESS_ROLES
 from ..auth_decorator import token_required
 from ..models import CategoriaProduto, Produto
 from ..responses import error_response, success_response
@@ -195,7 +195,7 @@ def _buscar_categoria_ativa_para_produto(categoria_id):
 
 
 @csrf_exempt
-@token_required(method_roles={'GET': CONSUMO_LAVANDERIA_ROLES, 'POST': FULL_ACCESS_ROLES})
+@token_required(method_roles={'GET': CONSUMO_ROLES, 'POST': FULL_ACCESS_ROLES})
 @require_http_methods(["GET", "POST"])
 def consumo_categorias_view(request):
     if request.method == 'POST':
@@ -237,7 +237,7 @@ def consumo_categorias_view(request):
 
 
 @csrf_exempt
-@token_required(method_roles={'GET': CONSUMO_LAVANDERIA_ROLES, 'POST': FULL_ACCESS_ROLES})
+@token_required(method_roles={'GET': CONSUMO_ROLES, 'POST': FULL_ACCESS_ROLES})
 @require_http_methods(["GET", "POST"])
 def consumo_produtos_view(request):
     if request.method == 'POST':
@@ -288,7 +288,7 @@ def consumo_produtos_view(request):
 
 
 @csrf_exempt
-@token_required(method_roles={'GET': CONSUMO_LAVANDERIA_ROLES, 'PUT': FULL_ACCESS_ROLES, 'PATCH': FULL_ACCESS_ROLES})
+@token_required(method_roles={'GET': CONSUMO_ROLES, 'PUT': FULL_ACCESS_ROLES, 'PATCH': FULL_ACCESS_ROLES})
 @require_http_methods(["GET", "PUT", "PATCH"])
 def consumo_produto_detail_view(request, produto_id):
     if request.method == 'GET':

@@ -7,6 +7,7 @@
 import React from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
+import { clearAuthStorage } from '../services/accessControl';
 import './MainLayout.css';
 
 /**
@@ -26,7 +27,7 @@ function MainLayout() {
      * Não há retorno; apenas efeitos colaterais.
      */
     const handleLogout = () => {
-        localStorage.removeItem('authToken');
+        clearAuthStorage();
         navigate('/');
     };
 

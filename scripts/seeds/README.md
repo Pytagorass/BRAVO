@@ -27,4 +27,10 @@ Usuario admin local:
 & "C:\Program Files\PostgreSQL\17\bin\psql.exe" "postgresql://postgres:123@localhost:5432/Barco_Hotel" -f "C:\Users\pytag\BRAVO\scripts\seeds\dev\0001_usuario_admin_dev.sql"
 ```
 
+Usuarios locais por nivel de acesso:
+
+```powershell
+& "C:\Program Files\PostgreSQL\17\bin\psql.exe" "postgresql://postgres:123@localhost:5432/Barco_Hotel" -f "C:\Users\pytag\BRAVO\scripts\seeds\dev\0002_usuarios_niveis_acesso_dev.sql"
+```
+
 Dados demo devem ser opcionais e nunca obrigatorios para producao.

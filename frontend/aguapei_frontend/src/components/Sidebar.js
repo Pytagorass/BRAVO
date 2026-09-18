@@ -13,9 +13,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { ShoppingBag } from 'react-feather';
+import { CreditCard, ShoppingBag } from 'react-feather';
 import './Sidebar.css';
 import UsuarioModal from './UsuarioModal';
+import { canAccessDesktopRoute, getUsuarioLocal } from '../services/accessControl';
 
 // Ícones inline utilizados nos links. Mantidos simples para evitar imports extras.
 const IconAgenda = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M3 10h18"></path></svg>;
@@ -34,15 +35,16 @@ const IconSair = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height
 function Sidebar({ handleLogout }) {
     const [isOpen, setIsOpen] = useState(true);
     const [showUsuarioModal, setShowUsuarioModal] = useState(false);
+    const [usuarioLogado, setUsuarioLogado] = useState(null);
     const [nomeUsuario, setNomeUsuario] = useState('Usuário');
 
     useEffect(() => {
         // Obtém o nome salvo durante o login/edição de perfil.
         try {
-            const usuarioJSON = localStorage.getItem('usuario');
-            if (usuarioJSON) {
-                const usuario = JSON.parse(usuarioJSON);
+            const usuario = getUsuarioLocal();
+            if (usuario) {
                 setNomeUsuario(usuario.nome);
+                setUsuarioLogado(usuario);
             }
         } catch (e) {
             console.error('Falha ao ler usuário do localStorage', e);
@@ -60,8 +62,11 @@ function Sidebar({ handleLogout }) {
         if (usuarioJSON) {
             const usuario = JSON.parse(usuarioJSON);
             setNomeUsuario(usuario.nome);
+            setUsuarioLogado(usuario);
         }
     };
+
+    const podeAcessar = (path) => canAccessDesktopRoute(path, usuarioLogado);
 
     return (
         <>
@@ -81,30 +86,48 @@ function Sidebar({ handleLogout }) {
                 </div>
 
                 <nav className="sidebar-nav">
-                    <NavLink to="/agenda" title="Agenda">
-                        <IconAgenda />
-                        <span className="link-text">Agenda</span>
-                    </NavLink>
-                    <NavLink to="/clientes" title="Clientes">
-                        <IconClientes />
-                        <span className="link-text">Clientes</span>
-                    </NavLink>
-                    <NavLink to="/quartos" title="Quartos">
-                        <IconQuartos />
-                        <span className="link-text">Quartos</span>
-                    </NavLink>
-                    <NavLink to="/barcos" title="Barcos">
-                        <IconBarcos />
-                        <span className="link-text">Barcos</span>
-                    </NavLink>
-                    <NavLink to="/consumo" title="Consumo">
-                        <ShoppingBag size={20} />
-                        <span className="link-text">Consumo</span>
-                    </NavLink>
-                    <NavLink to="/gestao" title="Gestão">
-                        <IconGestao />
-                        <span className="link-text">Gestão</span>
-                    </NavLink>
+                    {podeAcessar('/agenda') && (
+                        <NavLink to="/agenda" title="Agenda">
+                            <IconAgenda />
+                            <span className="link-text">Agenda</span>
+                        </NavLink>
+                    )}
+                    {podeAcessar('/clientes') && (
+                        <NavLink to="/clientes" title="Clientes">
+                            <IconClientes />
+                            <span className="link-text">Clientes</span>
+                        </NavLink>
+                    )}
+                    {podeAcessar('/quartos') && (
+                        <NavLink to="/quartos" title="Quartos">
+                            <IconQuartos />
+                            <span className="link-text">Quartos</span>
+                        </NavLink>
+                    )}
+                    {podeAcessar('/barcos') && (
+                        <NavLink to="/barcos" title="Barcos">
+                            <IconBarcos />
+                            <span className="link-text">Barcos</span>
+                        </NavLink>
+                    )}
+                    {podeAcessar('/consumo') && (
+                        <NavLink to="/consumo" title="Consumo">
+                            <ShoppingBag size={20} />
+                            <span className="link-text">Consumo</span>
+                        </NavLink>
+                    )}
+                    {podeAcessar('/contas-em-bordo') && (
+                        <NavLink to="/contas-em-bordo" title="Contas em Bordo">
+                            <CreditCard size={20} />
+                            <span className="link-text">Contas</span>
+                        </NavLink>
+                    )}
+                    {podeAcessar('/gestao') && (
+                        <NavLink to="/gestao" title="Gestão">
+                            <IconGestao />
+                            <span className="link-text">Gestão</span>
+                        </NavLink>
+                    )}
                 </nav>
 
                 <div className="sidebar-footer">

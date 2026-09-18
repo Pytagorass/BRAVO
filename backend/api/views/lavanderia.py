@@ -1,14 +1,14 @@
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from ..access_control import CONSUMO_LAVANDERIA_ROLES, LAVANDERIA_ROLES
+from ..access_control import LAVANDERIA_ROLES
 from ..auth_decorator import token_required
 from ..responses import error_response, success_response
 from ..services import lavanderia_service
 
 
 @csrf_exempt
-@token_required(roles=CONSUMO_LAVANDERIA_ROLES)
+@token_required(roles=LAVANDERIA_ROLES)
 @require_http_methods(["GET"])
 def consumo_lavanderia_categorias_view(request):
     try:
@@ -21,7 +21,7 @@ def consumo_lavanderia_categorias_view(request):
 
 
 @csrf_exempt
-@token_required(roles=CONSUMO_LAVANDERIA_ROLES)
+@token_required(roles=LAVANDERIA_ROLES)
 @require_http_methods(["GET"])
 def consumo_lavanderia_servicos_view(request):
     try:

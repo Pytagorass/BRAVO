@@ -4,18 +4,20 @@ import unicodedata
 ROLE_GERENTE = 'Gerente'
 ROLE_ADMINISTRADOR = 'Administrador'
 ROLE_RECEPCAO = 'Recepcao'
+ROLE_COMERCIAL = 'Comercial'
 ROLE_CONSUMO = 'Consumo'
 ROLE_LAVANDERIA = 'Lavanderia'
-ROLE_GESTAO = 'Gestao'
 
 FULL_ACCESS_ROLES = (ROLE_GERENTE, ROLE_ADMINISTRADOR)
 
-GESTAO_ROLES = (ROLE_GESTAO,)
 RECEPCAO_ROLES = (ROLE_RECEPCAO,)
-OPERACAO_READ_ROLES = (ROLE_RECEPCAO, ROLE_GESTAO, ROLE_CONSUMO, ROLE_LAVANDERIA)
-CONSUMO_ROLES = (ROLE_RECEPCAO, ROLE_CONSUMO)
-LAVANDERIA_ROLES = (ROLE_RECEPCAO, ROLE_CONSUMO, ROLE_LAVANDERIA)
-CONSUMO_LAVANDERIA_ROLES = (ROLE_RECEPCAO, ROLE_CONSUMO, ROLE_LAVANDERIA)
+RESERVAS_ROLES = (ROLE_RECEPCAO, ROLE_COMERCIAL)
+RESERVAS_READ_ROLES = (ROLE_RECEPCAO, ROLE_COMERCIAL)
+RESERVA_SUPPORT_READ_ROLES = (ROLE_RECEPCAO, ROLE_COMERCIAL)
+HOSPEDES_ROLES = (ROLE_RECEPCAO, ROLE_COMERCIAL)
+CONSUMO_ROLES = (ROLE_CONSUMO,)
+LAVANDERIA_ROLES = (ROLE_LAVANDERIA,)
+CONSUMO_CONTA_READ_ROLES = (ROLE_CONSUMO, ROLE_LAVANDERIA)
 
 
 ROLE_ALIASES = {
@@ -24,11 +26,12 @@ ROLE_ALIASES = {
     'gerente': ROLE_GERENTE,
     'recepcao': ROLE_RECEPCAO,
     'recepcionista': ROLE_RECEPCAO,
+    'comercial': ROLE_COMERCIAL,
     'consumo': ROLE_CONSUMO,
     'atendente consumo': ROLE_CONSUMO,
     'lavanderia': ROLE_LAVANDERIA,
-    'gestao': ROLE_GESTAO,
-    'gestor': ROLE_GESTAO,
+    'gestao': ROLE_COMERCIAL,
+    'gestor': ROLE_COMERCIAL,
 }
 
 
@@ -61,30 +64,25 @@ ROLE_PERMISSIONS = {
         'auth.perfil',
         'reservas.manage',
         'hospedes.manage',
-        'quartos.read',
-        'barcos.read',
-        'consumo.operacao.read',
-        'lavanderia.operacao.read',
-        'contas.close',
+        'reservas.checkin',
+    ],
+    ROLE_COMERCIAL: [
+        'auth.perfil',
+        'reservas.manage',
+        'hospedes.manage',
     ],
     ROLE_CONSUMO: [
         'auth.perfil',
         'reservas.open.read',
         'consumo.operacao',
-        'lavanderia.operacao',
+        'contas.read',
+        'contas.close',
     ],
     ROLE_LAVANDERIA: [
         'auth.perfil',
         'reservas.open.read',
-        'consumo.operacao.read',
+        'contas.read',
         'lavanderia.operacao',
-    ],
-    ROLE_GESTAO: [
-        'auth.perfil',
-        'gestao.read',
-        'reservas.read',
-        'quartos.read',
-        'barcos.read',
     ],
 }
 

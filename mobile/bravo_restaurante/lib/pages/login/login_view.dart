@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:bravo_restaurante/mvvm/usuario_viewmodel.dart';
 import 'package:bravo_restaurante/pages/home/home_view.dart';
+import 'package:bravo_restaurante/services/mobile_access_control.dart';
 import 'package:bravo_restaurante/widgets/cores_app.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -56,6 +57,12 @@ class _LoginViewState extends State<LoginView> {
       if (!mounted) return;
 
       if (sucesso) {
+        if (!MobileAccessControl.hasAnyMobileAccess(usuarioVM.usuarioLogado)) {
+          usuarioVM.logout();
+          _mostrarErro('Usuario sem permissao para acessar o app mobile.');
+          return;
+        }
+
         // Login validado: remove a tela de login da pilha e abre a Home.
         Navigator.of(
           context,

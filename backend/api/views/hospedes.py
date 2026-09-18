@@ -4,7 +4,7 @@ from django.db import IntegrityError
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from ..access_control import RECEPCAO_ROLES
+from ..access_control import HOSPEDES_ROLES
 from ..auth_decorator import token_required
 from ..models import Hospede
 from ..responses import error_response, success_response
@@ -62,7 +62,7 @@ def _hospede_to_dict(hospede):
 
 
 @csrf_exempt
-@token_required(roles=RECEPCAO_ROLES)
+@token_required(roles=HOSPEDES_ROLES)
 @require_http_methods(["GET", "POST"])
 def hospedes_view(request):
     if request.method == 'GET':
@@ -98,7 +98,7 @@ def hospedes_view(request):
 
 
 @csrf_exempt
-@token_required(roles=RECEPCAO_ROLES)
+@token_required(roles=HOSPEDES_ROLES)
 @require_http_methods(["PUT", "DELETE", "PATCH"])
 def hospede_detail_view(request, hospede_id):
     if request.method == 'PUT':

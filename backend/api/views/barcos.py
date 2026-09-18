@@ -6,7 +6,7 @@ from django.db.models import Exists, OuterRef
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from ..access_control import FULL_ACCESS_ROLES, OPERACAO_READ_ROLES
+from ..access_control import FULL_ACCESS_ROLES, RESERVA_SUPPORT_READ_ROLES
 from ..auth_decorator import token_required
 from ..models import Barco, Reserva, TipoPasseio
 from ..responses import error_response, success_response
@@ -97,7 +97,7 @@ def _parse_periodo(request):
 
 
 @csrf_exempt
-@token_required(method_roles={'GET': OPERACAO_READ_ROLES, 'POST': FULL_ACCESS_ROLES})
+@token_required(method_roles={'GET': RESERVA_SUPPORT_READ_ROLES, 'POST': FULL_ACCESS_ROLES})
 @require_http_methods(["GET", "POST"])
 def barcos_view(request):
     if request.method == 'POST':
@@ -163,7 +163,7 @@ def barcos_view(request):
 
 
 @csrf_exempt
-@token_required(method_roles={'GET': OPERACAO_READ_ROLES, 'PUT': FULL_ACCESS_ROLES, 'DELETE': FULL_ACCESS_ROLES})
+@token_required(method_roles={'GET': RESERVA_SUPPORT_READ_ROLES, 'PUT': FULL_ACCESS_ROLES, 'DELETE': FULL_ACCESS_ROLES})
 @require_http_methods(["GET", "PUT", "DELETE"])
 def barco_detail_view(request, barco_id):
     if request.method == 'GET':
@@ -218,7 +218,7 @@ def barco_detail_view(request, barco_id):
 
 
 @csrf_exempt
-@token_required(roles=OPERACAO_READ_ROLES)
+@token_required(roles=RESERVA_SUPPORT_READ_ROLES)
 @require_http_methods(["GET"])
 def tipos_passeio_view(request):
     ativo = request.GET.get('ativo', 'Ativo')

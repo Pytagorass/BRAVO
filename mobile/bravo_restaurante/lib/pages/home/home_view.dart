@@ -1,3 +1,4 @@
+import 'package:bravo_restaurante/models/usuario.dart';
 import 'package:bravo_restaurante/mvvm/usuario_viewmodel.dart';
 import 'package:bravo_restaurante/pages/bebida/lancar_bebida_view.dart';
 import 'package:bravo_restaurante/pages/conta/conta_hospede_view.dart';
@@ -5,6 +6,7 @@ import 'package:bravo_restaurante/pages/conta/fechar_conta_view.dart';
 import 'package:bravo_restaurante/pages/lavanderia/lavanderia_view.dart';
 import 'package:bravo_restaurante/pages/login/login_view.dart';
 import 'package:bravo_restaurante/pages/pedido/registrar_pedido_view.dart';
+import 'package:bravo_restaurante/services/mobile_access_control.dart';
 import 'package:bravo_restaurante/widgets/cores_app.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -27,7 +29,26 @@ class _HomeViewState extends State<HomeView> {
     );
   }
 
+  bool _usuarioPode(bool Function(Usuario? usuario) regra) {
+    final usuario = context.read<UsuarioViewModel>().usuarioLogado;
+    if (regra(usuario)) {
+      return true;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Usuario sem permissao para acessar este recurso.'),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+    return false;
+  }
+
   void _abrirLojinha() {
+    if (!_usuarioPode(MobileAccessControl.canLancamentoConsumo)) return;
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -38,6 +59,8 @@ class _HomeViewState extends State<HomeView> {
   }
 
   void _abrirLavanderia() {
+    if (!_usuarioPode(MobileAccessControl.canLavanderia)) return;
+
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const LavanderiaView()),
@@ -45,6 +68,8 @@ class _HomeViewState extends State<HomeView> {
   }
 
   void _abrirLancarBebida() {
+    if (!_usuarioPode(MobileAccessControl.canLancamentoConsumo)) return;
+
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const LancarBebidaView()),
@@ -52,6 +77,8 @@ class _HomeViewState extends State<HomeView> {
   }
 
   void _abrirContaHospede() {
+    if (!_usuarioPode(MobileAccessControl.canVerConta)) return;
+
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const ContaHospedeView()),
@@ -59,6 +86,8 @@ class _HomeViewState extends State<HomeView> {
   }
 
   void _abrirFecharConta() {
+    if (!_usuarioPode(MobileAccessControl.canFecharConta)) return;
+
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const FecharContaView()),
@@ -70,8 +99,80 @@ class _HomeViewState extends State<HomeView> {
     abrirTela();
   }
 
+  List<_HomeAction> _buildQuickActions(Usuario? usuario) {
+    return [
+      if (MobileAccessControl.canLancamentoConsumo(usuario))
+        _HomeAction(
+          label: 'Bebidas',
+          icon: Icons.local_bar,
+          onTap: _abrirLancarBebida,
+        ),
+      if (MobileAccessControl.canLancamentoConsumo(usuario))
+        _HomeAction(
+          label: 'Lojinha',
+          icon: Icons.storefront,
+          onTap: _abrirLojinha,
+        ),
+      if (MobileAccessControl.canLavanderia(usuario))
+        _HomeAction(
+          label: 'Lavanderia',
+          icon: Icons.local_laundry_service,
+          onTap: _abrirLavanderia,
+        ),
+      if (MobileAccessControl.canVerConta(usuario))
+        _HomeAction(
+          label: 'Conta',
+          icon: Icons.account_balance_wallet,
+          onTap: _abrirContaHospede,
+        ),
+      if (MobileAccessControl.canFecharConta(usuario))
+        _HomeAction(
+          label: 'Fechar Conta',
+          icon: Icons.attach_money,
+          onTap: _abrirFecharConta,
+        ),
+    ];
+  }
+
+  List<_HomeAction> _buildBottomActions(Usuario? usuario) {
+    return [
+      const _HomeAction(label: 'Home', icon: Icons.home_outlined),
+      if (MobileAccessControl.canLancamentoConsumo(usuario))
+        _HomeAction(
+          label: 'Bebidas',
+          icon: Icons.local_bar,
+          onTap: _abrirLancarBebida,
+        ),
+      if (MobileAccessControl.canLavanderia(usuario))
+        _HomeAction(
+          label: 'Lavanderia',
+          icon: Icons.local_laundry_service,
+          onTap: _abrirLavanderia,
+        ),
+      if (MobileAccessControl.canVerConta(usuario))
+        _HomeAction(
+          label: 'Conta',
+          icon: Icons.account_balance_wallet,
+          onTap: _abrirContaHospede,
+        ),
+      if (MobileAccessControl.canFecharConta(usuario))
+        _HomeAction(
+          label: 'Fechar',
+          icon: Icons.attach_money,
+          onTap: _abrirFecharConta,
+        ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
+    final usuario = context.watch<UsuarioViewModel>().usuarioLogado;
+    final quickActions = _buildQuickActions(usuario);
+    final bottomActions = _buildBottomActions(usuario);
+    final selectedIndex = _selectedIndex < bottomActions.length
+        ? _selectedIndex
+        : 0;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('BRAVO Consumo'),
@@ -85,7 +186,7 @@ class _HomeViewState extends State<HomeView> {
           ),
         ],
       ),
-      drawer: _buildDrawer(),
+      drawer: _buildDrawer(usuario),
       body: RefreshIndicator(
         onRefresh: () async {
           await Future.delayed(const Duration(milliseconds: 500));
@@ -96,66 +197,44 @@ class _HomeViewState extends State<HomeView> {
             _ResumoCard(),
             const SizedBox(height: 16),
             _AcessosRapidosCard(
-              abrirLancarBebida: _abrirLancarBebida,
-              abrirLojinha: _abrirLojinha,
-              abrirLavanderia: _abrirLavanderia,
-              abrirContaHospede: _abrirContaHospede,
-              abrirFecharConta: _abrirFecharConta,
+              actions: quickActions,
             ),
           ],
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: CoresApp.verdeEscuro,
-        unselectedItemColor: CoresApp.cinzaEscuro.withValues(alpha: 0.6),
-        iconSize: 26,
-        selectedFontSize: 13,
-        unselectedFontSize: 12,
-        showUnselectedLabels: true,
-        onTap: (index) {
-          setState(() => _selectedIndex = index);
+      bottomNavigationBar: bottomActions.length >= 2
+          ? BottomNavigationBar(
+              currentIndex: selectedIndex,
+              type: BottomNavigationBarType.fixed,
+              selectedItemColor: CoresApp.verdeEscuro,
+              unselectedItemColor: CoresApp.cinzaEscuro.withValues(alpha: 0.6),
+              iconSize: 26,
+              selectedFontSize: 13,
+              unselectedFontSize: 12,
+              showUnselectedLabels: true,
+              onTap: (index) {
+                if (index == 0) {
+                  setState(() => _selectedIndex = 0);
+                  return;
+                }
 
-          if (index == 1) {
-            _abrirLancarBebida();
-          } else if (index == 2) {
-            _abrirLavanderia();
-          } else if (index == 3) {
-            _abrirContaHospede();
-          } else if (index == 4) {
-            _abrirFecharConta();
-          }
-        },
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.local_bar),
-            label: 'Bebidas',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.local_laundry_service),
-            label: 'Lavanderia',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.account_balance_wallet),
-            label: 'Conta',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.attach_money),
-            label: 'Fechar',
-          ),
-        ],
-      ),
+                setState(() => _selectedIndex = 0);
+                bottomActions[index].onTap?.call();
+              },
+              items: bottomActions
+                  .map(
+                    (action) => BottomNavigationBarItem(
+                      icon: Icon(action.icon),
+                      label: action.label,
+                    ),
+                  )
+                  .toList(),
+            )
+          : null,
     );
   }
 
-  Drawer _buildDrawer() {
-    final usuario = context.watch<UsuarioViewModel>().usuarioLogado;
-
+  Drawer _buildDrawer(Usuario? usuario) {
     return Drawer(
       child: Column(
         children: [
@@ -172,31 +251,36 @@ class _HomeViewState extends State<HomeView> {
               child: Icon(Icons.person, color: CoresApp.verdeEscuro),
             ),
           ),
-          ListTile(
-            leading: const Icon(Icons.local_bar),
-            title: const Text('Bebidas'),
-            onTap: () => _fecharDrawerEAbrir(_abrirLancarBebida),
-          ),
-          ListTile(
-            leading: const Icon(Icons.storefront),
-            title: const Text('Lojinha'),
-            onTap: () => _fecharDrawerEAbrir(_abrirLojinha),
-          ),
-          ListTile(
-            leading: const Icon(Icons.local_laundry_service),
-            title: const Text('Lavanderia'),
-            onTap: () => _fecharDrawerEAbrir(_abrirLavanderia),
-          ),
-          ListTile(
-            leading: const Icon(Icons.account_balance_wallet),
-            title: const Text('Conta do Hospede'),
-            onTap: () => _fecharDrawerEAbrir(_abrirContaHospede),
-          ),
-          ListTile(
-            leading: const Icon(Icons.attach_money),
-            title: const Text('Fechar Conta'),
-            onTap: () => _fecharDrawerEAbrir(_abrirFecharConta),
-          ),
+          if (MobileAccessControl.canLancamentoConsumo(usuario))
+            ListTile(
+              leading: const Icon(Icons.local_bar),
+              title: const Text('Bebidas'),
+              onTap: () => _fecharDrawerEAbrir(_abrirLancarBebida),
+            ),
+          if (MobileAccessControl.canLancamentoConsumo(usuario))
+            ListTile(
+              leading: const Icon(Icons.storefront),
+              title: const Text('Lojinha'),
+              onTap: () => _fecharDrawerEAbrir(_abrirLojinha),
+            ),
+          if (MobileAccessControl.canLavanderia(usuario))
+            ListTile(
+              leading: const Icon(Icons.local_laundry_service),
+              title: const Text('Lavanderia'),
+              onTap: () => _fecharDrawerEAbrir(_abrirLavanderia),
+            ),
+          if (MobileAccessControl.canVerConta(usuario))
+            ListTile(
+              leading: const Icon(Icons.account_balance_wallet),
+              title: const Text('Conta do Hospede'),
+              onTap: () => _fecharDrawerEAbrir(_abrirContaHospede),
+            ),
+          if (MobileAccessControl.canFecharConta(usuario))
+            ListTile(
+              leading: const Icon(Icons.attach_money),
+              title: const Text('Fechar Conta'),
+              onTap: () => _fecharDrawerEAbrir(_abrirFecharConta),
+            ),
           const Spacer(),
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
@@ -207,6 +291,18 @@ class _HomeViewState extends State<HomeView> {
       ),
     );
   }
+}
+
+class _HomeAction {
+  final String label;
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  const _HomeAction({
+    required this.label,
+    required this.icon,
+    this.onTap,
+  });
 }
 
 class _ResumoCard extends StatelessWidget {
@@ -241,18 +337,10 @@ class _ResumoCard extends StatelessWidget {
 }
 
 class _AcessosRapidosCard extends StatelessWidget {
-  final VoidCallback abrirLancarBebida;
-  final VoidCallback abrirLojinha;
-  final VoidCallback abrirLavanderia;
-  final VoidCallback abrirContaHospede;
-  final VoidCallback abrirFecharConta;
+  final List<_HomeAction> actions;
 
   const _AcessosRapidosCard({
-    required this.abrirLancarBebida,
-    required this.abrirLojinha,
-    required this.abrirLavanderia,
-    required this.abrirContaHospede,
-    required this.abrirFecharConta,
+    required this.actions,
   });
 
   @override
@@ -277,54 +365,37 @@ class _AcessosRapidosCard extends StatelessWidget {
               ),
             ),
             SizedBox(height: espacamento),
-            Row(
-              children: [
-                Expanded(
-                  child: _QuickButton(
-                    label: 'Bebidas',
-                    icon: Icons.local_bar,
-                    onTap: abrirLancarBebida,
-                  ),
-                ),
-                SizedBox(width: espacamento),
-                Expanded(
-                  child: _QuickButton(
-                    label: 'Lojinha',
-                    icon: Icons.storefront,
-                    onTap: abrirLojinha,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: espacamento),
-            Row(
-              children: [
-                Expanded(
-                  child: _QuickButton(
-                    label: 'Lavanderia',
-                    icon: Icons.local_laundry_service,
-                    onTap: abrirLavanderia,
-                  ),
-                ),
-                SizedBox(width: espacamento),
-                Expanded(
-                  child: _QuickButton(
-                    label: 'Conta',
-                    icon: Icons.account_balance_wallet,
-                    onTap: abrirContaHospede,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: espacamento),
-            SizedBox(
-              width: double.infinity,
-              child: _QuickButton(
-                label: 'Fechar Conta',
-                icon: Icons.attach_money,
-                onTap: abrirFecharConta,
+            if (actions.isEmpty)
+              const Text(
+                'Este perfil nao possui funcionalidades liberadas no app mobile.',
+                style: TextStyle(color: CoresApp.cinzaEscuro),
+              )
+            else
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final colunas = actions.length == 1 ? 1 : (isTablet ? 3 : 2);
+                  final largura = (constraints.maxWidth -
+                          (espacamento * (colunas - 1))) /
+                      colunas;
+
+                  return Wrap(
+                    spacing: espacamento,
+                    runSpacing: espacamento,
+                    children: actions
+                        .map(
+                          (action) => SizedBox(
+                            width: largura,
+                            child: _QuickButton(
+                              label: action.label,
+                              icon: action.icon,
+                              onTap: action.onTap!,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  );
+                },
               ),
-            ),
           ],
         ),
       ),

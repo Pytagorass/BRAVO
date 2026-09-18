@@ -4,7 +4,7 @@ from django.db import IntegrityError
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from ..access_control import FULL_ACCESS_ROLES, OPERACAO_READ_ROLES
+from ..access_control import FULL_ACCESS_ROLES, RESERVA_SUPPORT_READ_ROLES
 from ..auth_decorator import token_required
 from ..models import Quarto
 from ..responses import error_response, success_response
@@ -24,7 +24,7 @@ def _quarto_to_dict(quarto):
 
 
 @csrf_exempt
-@token_required(method_roles={'GET': OPERACAO_READ_ROLES, 'POST': FULL_ACCESS_ROLES})
+@token_required(method_roles={'GET': RESERVA_SUPPORT_READ_ROLES, 'POST': FULL_ACCESS_ROLES})
 @require_http_methods(["GET", "POST"])
 def quartos_view(request):
     if request.method == 'GET':
@@ -60,7 +60,7 @@ def quartos_view(request):
 
 
 @csrf_exempt
-@token_required(method_roles={'GET': OPERACAO_READ_ROLES, 'PUT': FULL_ACCESS_ROLES, 'DELETE': FULL_ACCESS_ROLES})
+@token_required(method_roles={'GET': RESERVA_SUPPORT_READ_ROLES, 'PUT': FULL_ACCESS_ROLES, 'DELETE': FULL_ACCESS_ROLES})
 @require_http_methods(["GET", "PUT", "DELETE"])
 def quarto_detail_view(request, quarto_id):
     if request.method == 'GET':

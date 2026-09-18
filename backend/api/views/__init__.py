@@ -11,7 +11,7 @@ from .consumo_operacional import (
     consumo_reservas_abertas_view,
     consumo_vendas_view,
 )
-from .gestao import get_indicadores_gestao, get_reservas_pendentes
+from .gestao import get_contas_em_bordo, get_indicadores_gestao, get_reservas_pendentes
 from .hospedes import hospede_detail_view, hospedes_view
 from .lavanderia import (
     consumo_lavanderia_categorias_view,
@@ -35,6 +35,7 @@ __all__ = [
     'usuario_perfil_view',
     'get_indicadores_gestao',
     'get_reservas_pendentes',
+    'get_contas_em_bordo',
     'quartos_view',
     'quarto_detail_view',
     'hospedes_view',

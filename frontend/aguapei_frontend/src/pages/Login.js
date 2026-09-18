@@ -8,6 +8,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Container, Form, Button, Alert, Card } from 'react-bootstrap';
 import { login } from '../services/api';
+import { clearAuthStorage, isDesktopUser } from '../services/accessControl';
 import './Login.css';
 
 function Login() {
@@ -31,9 +32,17 @@ function Login() {
 
             // 2. VERIFICA O SUCESSO
             if (responseData.token) {
+                if (!isDesktopUser(responseData.usuario)) {
+                    clearAuthStorage();
+                    setError('Este perfil e exclusivo do aplicativo mobile.');
+                    return;
+                }
                 
                 // 3. SALVA O TOKEN
                 localStorage.setItem('authToken', responseData.token);
+                if (responseData.refresh) {
+                    localStorage.setItem('refreshToken', responseData.refresh);
+                }
                 
                 // 4. SALVA OS DADOS DO USUÁRIO
                 localStorage.setItem('usuario', JSON.stringify(responseData.usuario));

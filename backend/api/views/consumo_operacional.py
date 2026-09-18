@@ -1,14 +1,14 @@
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from ..access_control import CONSUMO_LAVANDERIA_ROLES, CONSUMO_ROLES, RECEPCAO_ROLES
+from ..access_control import CONSUMO_CONTA_READ_ROLES, CONSUMO_ROLES
 from ..auth_decorator import token_required
 from ..responses import error_response, success_response
 from ..services import consumo_service
 
 
 @csrf_exempt
-@token_required(roles=CONSUMO_LAVANDERIA_ROLES)
+@token_required(roles=CONSUMO_CONTA_READ_ROLES)
 @require_http_methods(["GET"])
 def consumo_reservas_abertas_view(request):
     try:
@@ -25,7 +25,7 @@ def consumo_vendas_view(request):
 
 
 @csrf_exempt
-@token_required(roles=CONSUMO_LAVANDERIA_ROLES)
+@token_required(roles=CONSUMO_CONTA_READ_ROLES)
 @require_http_methods(["GET"])
 def consumo_conta_detail_view(request, conta_id):
     try:
@@ -38,7 +38,7 @@ def consumo_conta_detail_view(request, conta_id):
 
 
 @csrf_exempt
-@token_required(roles=RECEPCAO_ROLES)
+@token_required(roles=CONSUMO_ROLES)
 @require_http_methods(["POST"])
 def consumo_fechar_conta_view(request, conta_id):
     try:

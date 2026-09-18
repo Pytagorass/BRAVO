@@ -93,6 +93,7 @@ export const updateUsuarioPerfil = (perfilData) => apiClient.put('/perfil/', per
 // --- GESTAO (BI) ---
 export const fetchIndicadoresGestao = (ano) => apiClient.get('/gestao/indicadores/', { params: { ano } });
 export const fetchReservasPendentesGestao = () => apiClient.get('/gestao/reservas-pendentes/');
+export const fetchContasEmBordoGestao = () => apiClient.get('/gestao/contas-em-bordo/');
 
 // --- CONSUMO (RESTAURANTE, BAR E LOJINHA) ---
 export const fetchConsumoCategorias = (params = {}) => apiClient.get('/consumo/categorias/', { params });

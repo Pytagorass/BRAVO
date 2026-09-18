@@ -5,8 +5,7 @@
 --   Email: admin@aguapei.local
 --   Senha: 123456
 --
--- A senha usa o prefixo legacy_bcrypt para ser validada pelo hasher
--- api.hashers.LegacyBCryptPasswordHasher.
+-- A senha usa o hash padrao do Django.
 --
 -- Nao use este seed em producao.
 -- ===================================================================
@@ -18,20 +17,23 @@ INSERT INTO usuario (
     email_usuario,
     senha,
     tipo_usuario,
-    ativo
+    ativo,
+    is_superuser
 )
 VALUES (
     'Administrador',
     'admin@aguapei.local',
-    'legacy_bcrypt$$2b$12$xwvkIIiHygHssiyvSAsLy..D9fI.0j8I4xtLHpq16WSp.K6PZSHM.',
+    'pbkdf2_sha256$1000000$Biugj4pdHp88FwylklrmpJ$cybZdT+Y/jMIDQpes86aMmbVItnXJNUT7TyUQRDVMBQ=',
     'Gerente',
-    'Ativo'
+    'Ativo',
+    TRUE
 )
 ON CONFLICT (email_usuario) DO UPDATE
 SET
     nome_usuario = EXCLUDED.nome_usuario,
     senha = EXCLUDED.senha,
     tipo_usuario = EXCLUDED.tipo_usuario,
-    ativo = EXCLUDED.ativo;
+    ativo = EXCLUDED.ativo,
+    is_superuser = EXCLUDED.is_superuser;
 
 COMMIT;
